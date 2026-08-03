@@ -30,6 +30,10 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // R8 minification is disabled: it exhausts the CI runner's memory
+            // (Gradle daemon GC thrashing). Re-enable once Play Store release.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
