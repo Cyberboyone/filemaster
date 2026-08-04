@@ -35,12 +35,15 @@ jobs:
 
       - name: Diagnostic - runner memory and Gradle JVM args
         run: |
+          set +e
           echo "=== free -h ==="
           free -h
           echo "=== gradle.properties ==="
-          cat android/gradle.properties
-          echo "=== daemon jvm args (help --info) ==="
-          cd file_master/android && ./gradlew help --info --no-daemon 2>&1 | grep -iE "xmx|xx:|daemon|starting build" | head -30
+          cat file_master/android/gradle.properties
+          echo "=== gradle daemon jvm args ==="
+          cd file_master/android
+          ./gradlew help --info --no-daemon 2>&1 | grep -iE "xmx|xx:|daemon|starting build|memory|heap" | head -30
+          true
 
       - name: Build APK (debug)
         working-directory: file_master
