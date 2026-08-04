@@ -44,20 +44,25 @@ jobs:
           echo "::warning::DAEMON_ARGS = $ARGS"
           true
 
-      - name: Build APK (debug)
+      - name: Build APK (debug, no daemon)
         working-directory: file_master
+        env:
+          GRADLE_OPTS: "-Xmx6G -XX:MaxMetaspaceSize=2G"
+          JAVA_OPTS: "-Xmx6G -XX:MaxMetaspaceSize=2G"
         run: |
           set +e
           (while true; do echo "$(date +%T) $(free -m | awk '/Mem:/{print $2"MB total "$7"MB avail"}')" >> mem_trace.log; sleep 10; done) &
           MON=$!
-          flutter build apk --debug > build.log 2>&1
+          cd android
+          ./gradlew :app:assembleDebug --no-daemon --info --console=plain > build.log 2>&1
           RC=$?
           kill $MON 2>/dev/null
           if [ $RC -ne 0 ]; then
             echo "::error::MEM_TRACE = $(tr '\n' ' | ' < mem_trace.log)"
-            echo "::error::BUILD_TAIL = $(tail -8 build.log | tr '\n' ' | ')"
+            echo "::error::DAEMON_ARGS = $(grep -oE '\-Xmx[0-9a-zA-Z]+' build.log | sort -u | tr '\n' ' ')"
+            echo "::error::BUILD_TAIL = $(tail -10 build.log | tr '\n' ' | ')"
           fi
-          tail -30 build.log
+          tail -35 build.log
           exit $RC
 
       - name: Upload APK
