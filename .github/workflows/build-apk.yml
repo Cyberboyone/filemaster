@@ -33,12 +33,12 @@ jobs:
         working-directory: file_master
         run: flutter test
 
-      - name: Build APK (release)
+      - name: Build APK (debug)
         working-directory: file_master
-        run: flutter build apk --release
+        run: flutter build apk --debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: file-master-apk
-          path: file_master/build/app/outputs/flutter-apk/app-release.apk
+          path: file_master/build/app/outputs/flutter-apk/app-debug.apk
