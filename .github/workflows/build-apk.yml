@@ -33,8 +33,19 @@ jobs:
         working-directory: file_master
         run: flutter test
 
+      - name: Diagnostic - runner memory and Gradle JVM args
+        run: |
+          echo "=== free -h ==="
+          free -h
+          echo "=== gradle.properties ==="
+          cat android/gradle.properties
+          echo "=== daemon jvm args (help --info) ==="
+          cd file_master/android && ./gradlew help --info --no-daemon 2>&1 | grep -iE "xmx|xx:|daemon|starting build" | head -30
+
       - name: Build APK (debug)
         working-directory: file_master
+        env:
+          JAVA_TOOL_OPTIONS: "-Xmx4G -XX:MaxMetaspaceSize=1G"
         run: flutter build apk --debug
 
       - name: Upload APK
