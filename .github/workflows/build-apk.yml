@@ -36,20 +36,29 @@ jobs:
       - name: Diagnostic - runner memory and Gradle JVM args
         run: |
           set +e
-          echo "=== free -h ==="
-          free -h
+          echo "::warning::RAM=$(free -h | awk '/Mem:/{print $2" total, "$7" avail"}' | tr -d '\n') CPUS=$(nproc)"
           echo "=== gradle.properties ==="
           cat file_master/android/gradle.properties
-          echo "=== gradle daemon jvm args ==="
           cd file_master/android
-          ./gradlew help --info --no-daemon 2>&1 | grep -iE "xmx|xx:|daemon|starting build|memory|heap" | head -30
+          ARGS=$(./gradlew help --info --no-daemon 2>&1 | grep -iE "xmx|metaspace|jvm arguments" | head -6 | tr '\n' ' | ')
+          echo "::warning::DAEMON_ARGS = $ARGS"
           true
 
       - name: Build APK (debug)
         working-directory: file_master
-        env:
-          JAVA_TOOL_OPTIONS: "-Xmx4G -XX:MaxMetaspaceSize=1G"
-        run: flutter build apk --debug
+        run: |
+          set +e
+          (while true; do echo "$(date +%T) $(free -m | awk '/Mem:/{print $2"MB total "$7"MB avail"}')" >> mem_trace.log; sleep 10; done) &
+          MON=$!
+          flutter build apk --debug > build.log 2>&1
+          RC=$?
+          kill $MON 2>/dev/null
+          if [ $RC -ne 0 ]; then
+            echo "::error::MEM_TRACE = $(tr '\n' ' | ' < mem_trace.log)"
+            echo "::error::BUILD_TAIL = $(tail -8 build.log | tr '\n' ' | ')"
+          fi
+          tail -30 build.log
+          exit $RC
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
