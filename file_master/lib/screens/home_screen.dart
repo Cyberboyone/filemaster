@@ -8,6 +8,7 @@ import '../providers/settings_provider.dart';
 import '../utils/doc_format.dart';
 import '../widgets/recent_file_tile.dart';
 import 'settings_screen.dart';
+import 'viewer_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -31,18 +32,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final path = picked?.path;
     if (picked == null || path == null) return;
 
-    await ref.read(recentsControllerProvider.notifier).recordOpen(
-          RecentFile(
-            name: picked.name,
-            path: path,
-            format: DocFormat.fromPath(path),
-            sizeBytes: picked.size,
-            lastOpened: DateTime.now(),
-          ),
-        );
+    final file = RecentFile(
+      name: picked.name,
+      path: path,
+      format: DocFormat.fromPath(path),
+      sizeBytes: picked.size,
+      lastOpened: DateTime.now(),
+    );
+    await ref.read(recentsControllerProvider.notifier).recordOpen(file);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Opened ${picked.name}')));
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ViewerScreen(file: file)),
+    );
   }
 
   Future<void> _openFile(RecentFile file) async {
@@ -50,8 +51,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           lastOpened: DateTime.now(),
         ));
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('Viewer coming in Phase 2: ${file.name}')));
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ViewerScreen(file: file)),
+    );
   }
 
   void _showQuickActions() {
