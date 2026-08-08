@@ -31,9 +31,7 @@ enum DocFormat {
         ext.endsWith('.ods')) {
       return DocFormat.excel;
     }
-    if (ext.endsWith('.ppt') ||
-        ext.endsWith('.pptx') ||
-        ext.endsWith('.odp')) {
+    if (ext.endsWith('.ppt') || ext.endsWith('.pptx') || ext.endsWith('.odp')) {
       return DocFormat.powerpoint;
     }
     if (ext.endsWith('.txt') ||
@@ -43,7 +41,14 @@ enum DocFormat {
       return DocFormat.text;
     }
     const images = [
-      '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.heic', '.tiff',
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.gif',
+      '.bmp',
+      '.webp',
+      '.heic',
+      '.tiff',
     ];
     for (final image in images) {
       if (ext.endsWith(image)) return DocFormat.image;

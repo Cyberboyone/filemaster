@@ -22,8 +22,8 @@ final recentsDaoProvider = FutureProvider<RecentsDao>((ref) async {
 
 final recentsControllerProvider =
     NotifierProvider<RecentsController, AsyncValue<List<RecentFile>>>(
-  RecentsController.new,
-);
+      RecentsController.new,
+    );
 
 class RecentsController extends Notifier<AsyncValue<List<RecentFile>>> {
   @override

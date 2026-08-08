@@ -5,8 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/ad_banner.dart';
 import '../utils/doc_format.dart';
+import '../widgets/message_view.dart';
 import '../widgets/recent_file_tile.dart';
+import 'convert_screen.dart';
+import 'create_pdf_screen.dart';
+import 'files_screen.dart';
+import 'merge_screen.dart';
+import 'scan_screen.dart';
 import 'settings_screen.dart';
 import 'viewer_screen.dart';
 
@@ -18,14 +25,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+  int _tabIndex = 0;
 
   Future<void> _pickAndRecord() async {
     final picked = await FilePicker.pickFile();
@@ -41,19 +41,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
     await ref.read(recentsControllerProvider.notifier).recordOpen(file);
     if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ViewerScreen(file: file)),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ViewerScreen(file: file)));
   }
 
-  Future<void> _openFile(RecentFile file) async {
-    await ref.read(recentsControllerProvider.notifier).recordOpen(file.copyWith(
-          lastOpened: DateTime.now(),
-        ));
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ViewerScreen(file: file)),
-    );
+  void _openTool(Widget screen) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
   }
 
   void _showQuickActions() {
@@ -67,7 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ListTile(
               leading: const Icon(Icons.folder_open),
               title: const Text('Open file'),
-              subtitle: const Text('Browse device storage'),
+              subtitle: const Text('Pick a file from your device'),
               onTap: () {
                 Navigator.pop(sheetContext);
                 _pickAndRecord();
@@ -76,19 +70,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ListTile(
               leading: const Icon(Icons.document_scanner_outlined),
               title: const Text('Scan to PDF'),
-              subtitle: const Text('Coming in Phase 3'),
+              subtitle: const Text('Camera → one PDF document'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                _comingSoon('Scan to PDF');
+                _openTool(const ScanScreen());
               },
             ),
             ListTile(
               leading: const Icon(Icons.note_add_outlined),
               title: const Text('Create PDF'),
-              subtitle: const Text('Coming in Phase 3'),
+              subtitle: const Text('Write text, save as PDF'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                _comingSoon('Create PDF');
+                _openTool(const CreatePdfScreen());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.call_merge),
+              title: const Text('Merge PDFs'),
+              subtitle: const Text('Combine several PDFs into one'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _openTool(const MergePdfScreen());
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.swap_horiz_outlined),
+              title: const Text('Convert'),
+              subtitle: const Text('Files ↔ PDF, PDF → images'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _openTool(const ConvertScreen());
               },
             ),
             const SizedBox(height: 8),
@@ -98,14 +110,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  void _comingSoon(String feature) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('$feature — coming in Phase 3')));
-  }
-
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('File Master'),
@@ -114,63 +120,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             builder: (context, ref, _) {
               final settings = ref.watch(settingsControllerProvider);
               return IconButton(
-                tooltip: settings.darkMode ? 'Switch to light' : 'Switch to dark',
+                tooltip: settings.darkMode
+                    ? 'Switch to light'
+                    : 'Switch to dark',
                 icon: Icon(
-                  settings.darkMode ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+                  settings.darkMode
+                      ? Icons.light_mode_outlined
+                      : Icons.dark_mode_outlined,
                 ),
-                onPressed: () =>
-                    ref.read(settingsControllerProvider.notifier).toggleDarkMode(),
+                onPressed: () => ref
+                    .read(settingsControllerProvider.notifier)
+                    .toggleDarkMode(),
               );
             },
           ),
           IconButton(
             tooltip: 'Settings',
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
+            onPressed: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
           ),
         ],
       ),
-      body: Column(
+      body: IndexedStack(
+        index: _tabIndex,
+        children: const [_RecentsTab(), FilesScreen()],
+      ),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) => setState(() => _query = value.trim().toLowerCase()),
-              decoration: InputDecoration(
-                hintText: 'Search by name or type',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
-                      ),
+          const AdBanner(),
+          NavigationBar(
+            selectedIndex: _tabIndex,
+            onDestinationSelected: (index) => setState(() => _tabIndex = index),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.history),
+                selectedIcon: Icon(Icons.history),
+                label: 'Recents',
               ),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-                  child: Text(
-                    'Recent files',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleSmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                ),
-                Expanded(child: _buildRecentsList()),
-              ],
-            ),
+              NavigationDestination(
+                icon: Icon(Icons.folder_outlined),
+                selectedIcon: Icon(Icons.folder),
+                label: 'Files',
+              ),
+            ],
           ),
         ],
       ),
@@ -181,12 +176,86 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ),
     );
   }
+}
+
+class _RecentsTab extends ConsumerStatefulWidget {
+  const _RecentsTab();
+
+  @override
+  ConsumerState<_RecentsTab> createState() => _RecentsTabState();
+}
+
+class _RecentsTabState extends ConsumerState<_RecentsTab> {
+  final TextEditingController _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openFile(RecentFile file) async {
+    await ref
+        .read(recentsControllerProvider.notifier)
+        .recordOpen(file.copyWith(lastOpened: DateTime.now()));
+    if (!mounted) return;
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ViewerScreen(file: file)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: TextField(
+            controller: _searchController,
+            onChanged: (value) =>
+                setState(() => _query = value.trim().toLowerCase()),
+            decoration: InputDecoration(
+              hintText: 'Search by name or type',
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _query = '');
+                      },
+                    ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+                child: Text(
+                  'Recent files',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Expanded(child: _buildRecentsList()),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildRecentsList() {
     final recents = ref.watch(recentsControllerProvider);
     return recents.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) => _Message(
+      error: (error, stackTrace) => MessageView(
         icon: Icons.error_outline,
         title: 'Could not load recents',
         subtitle: '$error',
@@ -204,14 +273,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               }).toList();
 
         if (files.isEmpty) {
-          return const _Message(
+          return const MessageView(
             icon: Icons.history,
             title: 'No recent files',
             subtitle: 'Tap + to open a file from your device',
           );
         }
         if (filtered.isEmpty) {
-          return const _Message(
+          return const MessageView(
             icon: Icons.search_off,
             title: 'No results',
             subtitle: 'Try a different search',
@@ -226,51 +295,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             return RecentFileTile(
               file: file,
               onTap: () => _openFile(file),
-              onDismiss: () =>
-                  ref.read(recentsControllerProvider.notifier).remove(file.path),
+              onDismiss: () => ref
+                  .read(recentsControllerProvider.notifier)
+                  .remove(file.path),
             );
           },
         );
       },
-    );
-  }
-}
-
-class _Message extends StatelessWidget {
-  const _Message({required this.icon, required this.title, this.subtitle, this.action});
-
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 56, color: scheme.outline),
-            const SizedBox(height: 16),
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            if (subtitle != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                subtitle!,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              ),
-            ],
-            if (action != null) ...[
-              const SizedBox(height: 8),
-              action!,
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

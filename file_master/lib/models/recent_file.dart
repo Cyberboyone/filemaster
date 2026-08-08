@@ -52,8 +52,9 @@ class RecentFile {
       path: map['path'] as String,
       format: DocFormat.fromStorageKey(map['format'] as String),
       sizeBytes: (map['size'] as int?) ?? 0,
-      lastOpened:
-          DateTime.fromMillisecondsSinceEpoch((map['lastOpened'] as int?) ?? 0),
+      lastOpened: DateTime.fromMillisecondsSinceEpoch(
+        (map['lastOpened'] as int?) ?? 0,
+      ),
     );
   }
 }

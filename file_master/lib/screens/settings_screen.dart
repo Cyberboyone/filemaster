@@ -22,8 +22,9 @@ class SettingsScreen extends ConsumerWidget {
                 title: const Text('Dark mode'),
                 subtitle: const Text('Persisted on this device'),
                 value: settings.darkMode,
-                onChanged: (value) =>
-                    ref.read(settingsControllerProvider.notifier).setDarkMode(value),
+                onChanged: (value) => ref
+                    .read(settingsControllerProvider.notifier)
+                    .setDarkMode(value),
               ),
             ],
           ),
@@ -34,7 +35,9 @@ class SettingsScreen extends ConsumerWidget {
                 leading: const Icon(Icons.delete_sweep_outlined),
                 title: const Text('Clear recent files'),
                 onTap: () async {
-                  final controller = ref.read(recentsControllerProvider.notifier);
+                  final controller = ref.read(
+                    recentsControllerProvider.notifier,
+                  );
                   await controller.clear();
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:pdfx/pdfx.dart';
+import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/recent_file.dart';
@@ -18,14 +19,36 @@ class ViewerScreen extends StatelessWidget {
     final pathFile = File(file.path);
     if (!pathFile.existsSync()) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('File not found')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('File not found')));
       return;
     }
-    await SharePlus.instance.share(ShareParams(
-      files: [XFile(pathFile.path)],
-      subject: file.name,
-    ));
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(pathFile.path)], subject: file.name),
+    );
+  }
+
+  Future<void> _print(BuildContext context) async {
+    final pathFile = File(file.path);
+    if (!pathFile.existsSync()) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('File not found')));
+      return;
+    }
+    try {
+      await Printing.layoutPdf(
+        name: file.name,
+        onLayout: (format) async => pathFile.readAsBytes(),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not print: $error')));
+    }
   }
 
   @override
@@ -35,6 +58,12 @@ class ViewerScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
+          if (file.format == DocFormat.pdf)
+            IconButton(
+              tooltip: 'Print',
+              icon: const Icon(Icons.print_outlined),
+              onPressed: () => _print(context),
+            ),
           IconButton(
             tooltip: 'Share',
             icon: const Icon(Icons.share_outlined),
@@ -54,21 +83,21 @@ class ViewerScreen extends StatelessWidget {
               DocFormat.text => _TextViewer(path: file.path),
               DocFormat.word ||
               DocFormat.excel ||
-              DocFormat.powerpoint =>
-                _UnsupportedViewer(
-                  file: file,
-                  icon: file.format.icon,
-                  message:
-                      'Offline preview for ${file.format.label} files is not '
-                      'available yet. Use Share to open it in another app.',
-                ),
+              DocFormat.powerpoint => _UnsupportedViewer(
+                file: file,
+                icon: file.format.icon,
+                message:
+                    'Offline preview for ${file.format.label} files is not '
+                    'available. Use Share to open it in another app, or '
+                    'Convert (from the home screen) to turn it into a PDF.',
+              ),
               _ => _UnsupportedViewer(
-                  file: file,
-                  icon: file.format.icon,
-                  message:
-                      'This ${file.format.label} type is not supported '
-                      'yet. Use Share to open it in another app.',
-                ),
+                file: file,
+                icon: file.format.icon,
+                message:
+                    'This ${file.format.label} type is not supported '
+                    'yet. Use Share to open it in another app.',
+              ),
             },
     );
   }
@@ -114,8 +143,9 @@ class _PdfViewerState extends State<_PdfViewer> {
           );
         }
         return PdfViewPinch(
-          controller:
-              PdfControllerPinch(document: Future.value(snapshot.data!)),
+          controller: PdfControllerPinch(
+            document: Future.value(snapshot.data!),
+          ),
         );
       },
     );
@@ -139,7 +169,11 @@ class _ImageViewer extends StatelessWidget {
           errorBuilder: (context, error, stackTrace) => Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.broken_image_outlined, size: 56, color: scheme.outline),
+              Icon(
+                Icons.broken_image_outlined,
+                size: 56,
+                color: scheme.outline,
+              ),
               const SizedBox(height: 12),
               const Text('This image could not be displayed'),
             ],
@@ -172,11 +206,7 @@ class _TextViewerState extends State<_TextViewer> {
           .openRead(0, _maxChars)
           .transform(const Utf8Decoder(allowMalformed: true))
           .join();
-      return _TextResult(
-        content: partial,
-        truncated: true,
-        totalBytes: length,
-      );
+      return _TextResult(content: partial, truncated: true, totalBytes: length);
     }
     final content = await file.readAsString();
     return _TextResult(content: content, truncated: false, totalBytes: length);
@@ -258,11 +288,7 @@ class _UnsupportedViewer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _CenterMessage(
-      icon: icon,
-      title: file.name,
-      subtitle: message,
-    );
+    return _CenterMessage(icon: icon, title: file.name, subtitle: message);
   }
 }
 

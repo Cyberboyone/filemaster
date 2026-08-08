@@ -4,7 +4,12 @@ import '../models/recent_file.dart';
 import '../utils/doc_format.dart';
 
 class RecentFileTile extends StatelessWidget {
-  const RecentFileTile({super.key, required this.file, this.onTap, this.onDismiss});
+  const RecentFileTile({
+    super.key,
+    required this.file,
+    this.onTap,
+    this.onDismiss,
+  });
 
   final RecentFile file;
   final VoidCallback? onTap;
