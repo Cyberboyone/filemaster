@@ -34,7 +34,14 @@ void main() {
           file: _file(name: 'notes.txt', path: path, format: DocFormat.text),
         ),
       ));
-      await tester.pumpAndSettle();
+
+      var attempts = 0;
+      while (find.text('hello from file master').evaluate().isEmpty &&
+          attempts < 100) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await tester.pump();
+        attempts++;
+      }
 
       expect(find.text('hello from file master'), findsOneWidget);
     });
@@ -57,26 +64,28 @@ void main() {
   });
 
   testWidgets('office files show unsupported message', (tester) async {
-    final dir = await Directory.systemTemp.createTemp('fm_viewer_test');
-    addTearDown(() => dir.delete(recursive: true));
-    final path = '${dir.path}/deck.pptx';
-    File(path).writeAsStringSync('placeholder');
+    await tester.runAsync(() async {
+      final dir = await Directory.systemTemp.createTemp('fm_viewer_test');
+      addTearDown(() => dir.delete(recursive: true));
+      final path = '${dir.path}/deck.pptx';
+      await File(path).writeAsString('placeholder');
 
-    await tester.pumpWidget(MaterialApp(
-      home: ViewerScreen(
-        file: _file(
-          name: 'deck.pptx',
-          path: path,
-          format: DocFormat.powerpoint,
+      await tester.pumpWidget(MaterialApp(
+        home: ViewerScreen(
+          file: _file(
+            name: 'deck.pptx',
+            path: path,
+            format: DocFormat.powerpoint,
+          ),
         ),
-      ),
-    ));
-    await tester.pumpAndSettle();
+      ));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('Offline preview for PowerPoint files is not'),
-      findsOneWidget,
-    );
+      expect(
+        find.textContaining('Offline preview for PowerPoint files is not'),
+        findsOneWidget,
+      );
+    });
   });
 
   testWidgets('image viewer renders an image file', (tester) async {
