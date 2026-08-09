@@ -150,7 +150,8 @@ void main() {
       }
 
       expect(find.textContaining('No readable text'), findsOneWidget);
-      expect(find.text('Save as PDF'), findsOneWidget);
+      expect(find.text('Convert'), findsOneWidget);
+      expect(find.text('Save as PDF'), findsNothing);
     });
   });
 
@@ -191,7 +192,8 @@ void main() {
       }
 
       expect(find.textContaining('Hello from a docx'), findsOneWidget);
-      expect(find.text('Save as PDF'), findsOneWidget);
+      expect(find.text('Convert'), findsOneWidget);
+      expect(find.text('Save as PDF'), findsNothing);
     });
   });
 

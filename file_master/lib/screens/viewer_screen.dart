@@ -13,6 +13,7 @@ import '../utils/doc_format.dart';
 import '../utils/office_utils.dart';
 import '../utils/output_utils.dart';
 import '../utils/pdf_builder.dart';
+import '../utils/text_pager.dart';
 
 /// True for Office formats we can read offline (the modern XML based ones).
 bool _isConvertibleOffice(String path) {
@@ -210,7 +211,13 @@ class _TextViewer extends StatefulWidget {
 class _TextViewerState extends State<_TextViewer> {
   static const int _maxChars = 2 * 1024 * 1024;
 
-  late final Future<_TextResult> _load = _read();
+  late Future<_TextResult> _load = _read();
+
+  void _reload() {
+    setState(() {
+      _load = _read();
+    });
+  }
 
   Future<_TextResult> _read() async {
     final file = File(widget.path);
@@ -243,36 +250,180 @@ class _TextViewerState extends State<_TextViewer> {
           );
         }
         final result = snapshot.data!;
-        return SelectionArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (result.truncated)
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: scheme.tertiaryContainer,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Showing the first $_maxChars characters '
-                      '(${result.totalBytes ~/ 1024} KB total).',
-                      style: TextStyle(color: scheme.onTertiaryContainer),
-                    ),
+        return Column(
+          children: [
+            Expanded(
+              child: SelectionArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (result.truncated)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: scheme.tertiaryContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Showing the first $_maxChars characters '
+                            '(${result.totalBytes ~/ 1024} KB total).',
+                            style: TextStyle(
+                              color: scheme.onTertiaryContainer,
+                            ),
+                          ),
+                        ),
+                      Text(
+                        result.content,
+                        style: const TextStyle(fontSize: 15, height: 1.4),
+                      ),
+                    ],
                   ),
-                Text(
-                  result.content,
-                  style: const TextStyle(fontSize: 15, height: 1.4),
+                ),
+              ),
+            ),
+            _ToolsBar(
+              tools: [
+                _ToolItem(
+                  icon: Icons.edit_outlined,
+                  label: 'Edit',
+                  onTap: () => _edit(result.content),
+                ),
+                _ToolItem(
+                  icon: Icons.picture_as_pdf_outlined,
+                  label: 'Convert',
+                  onTap: () => _convertToPdf(result.content),
                 ),
               ],
             ),
-          ),
+          ],
         );
       },
+    );
+  }
+
+  Future<void> _edit(String content) async {
+    if (!mounted) return;
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _TextEditorPage(
+          filePath: widget.path,
+          initialContent: content,
+        ),
+      ),
+    );
+    if (saved == true) _reload();
+  }
+
+  Future<void> _convertToPdf(String content) async {
+    final baseName = sanitizeFileName(
+      p.basenameWithoutExtension(widget.path),
+    );
+    final fileName = '${baseName}_converted.pdf';
+    try {
+      final bytes = await buildTextPdf(
+        title: p.basename(widget.path),
+        content: content,
+      );
+      final file = await saveOutput(bytes, fileName);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved to ${file.path}')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save PDF: $error')));
+    }
+  }
+}
+
+class _TextEditorPage extends StatefulWidget {
+  const _TextEditorPage({
+    required this.filePath,
+    required this.initialContent,
+  });
+
+  final String filePath;
+  final String initialContent;
+
+  @override
+  State<_TextEditorPage> createState() => _TextEditorPageState();
+}
+
+class _TextEditorPageState extends State<_TextEditorPage> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialContent,
+  );
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await File(widget.filePath).writeAsString(
+        _controller.text,
+        flush: true,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Edit'),
+        actions: [
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'Save',
+              icon: const Icon(Icons.check),
+              onPressed: _save,
+            ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: TextField(
+          controller: _controller,
+          maxLines: null,
+          expands: true,
+          autofocus: true,
+          keyboardType: TextInputType.multiline,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: 'Type your text...',
+          ),
+        ),
+      ),
     );
   }
 }
@@ -306,7 +457,7 @@ class _OfficeDocViewerState extends State<_OfficeDocViewer> {
     return text.trim().isEmpty ? '(No readable text found in this file.)' : text;
   }
 
-  Future<void> _saveAsPdf(String content) async {
+  Future<void> _convertToPdf(String content) async {
     final baseName = sanitizeFileName(
       p.basenameWithoutExtension(widget.file.path),
     );
@@ -349,24 +500,80 @@ class _OfficeDocViewerState extends State<_OfficeDocViewer> {
         final content = snapshot.data!;
         return Column(
           children: [
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              height: 48,
-              child: FilledButton.icon(
-                onPressed: () => _saveAsPdf(content),
-                icon: const Icon(Icons.picture_as_pdf_outlined),
-                label: const Text('Save as PDF'),
-              ),
+            Expanded(child: _PagedTextViewer(content: content)),
+            _ToolsBar(
+              tools: [
+                _ToolItem(
+                  icon: Icons.picture_as_pdf_outlined,
+                  label: 'Convert',
+                  onTap: () => _convertToPdf(content),
+                ),
+              ],
             ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Shows long text split into numbered, swipeable pages.
+class _PagedTextViewer extends StatefulWidget {
+  const _PagedTextViewer({required this.content});
+
+  final String content;
+
+  @override
+  State<_PagedTextViewer> createState() => _PagedTextViewerState();
+}
+
+class _PagedTextViewerState extends State<_PagedTextViewer> {
+  static const _style = TextStyle(fontSize: 15, height: 1.4);
+
+  final PageController _controller = PageController();
+  int _page = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pages = paginateText(
+          text: widget.content,
+          style: _style,
+          width: constraints.maxWidth - 40,
+          height: constraints.maxHeight - 40,
+        );
+        final total = pages.length;
+        final current = _page.clamp(0, total - 1);
+        return Column(
+          children: [
             Expanded(
               child: SelectionArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(
-                    content,
-                    style: const TextStyle(fontSize: 15, height: 1.4),
+                child: PageView.builder(
+                  controller: _controller,
+                  itemCount: total,
+                  onPageChanged: (index) => setState(() => _page = index),
+                  itemBuilder: (context, index) => SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    child: Text(pages[index], style: _style),
                   ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Page ${current + 1} of $total',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
             ),
@@ -375,6 +582,70 @@ class _OfficeDocViewerState extends State<_OfficeDocViewer> {
       },
     );
   }
+}
+
+/// Bottom action bar shown inside a viewer with tools for the current file
+/// type (Convert, Edit, ...).
+class _ToolsBar extends StatelessWidget {
+  const _ToolsBar({required this.tools});
+
+  final List<_ToolItem> tools;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 68,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              for (final tool in tools)
+                InkWell(
+                  onTap: tool.onTap,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(tool.icon, size: 24, color: scheme.primary),
+                        const SizedBox(height: 4),
+                        Text(
+                          tool.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToolItem {
+  const _ToolItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
 }
 
 class _UnsupportedViewer extends StatelessWidget {

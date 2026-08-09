@@ -14,17 +14,13 @@ import '../utils/output_utils.dart';
 import '../widgets/message_view.dart';
 import 'viewer_screen.dart';
 
-/// Device file browser.
-///
-/// Browsing the device works with any of:
-///  - "All files access" on Android 11+ (full storage),
-///  - legacy storage permission on Android 10,
-///  - "Files and media" on Android 13+ (media files only, decided by the OS).
-/// The screen re-checks permissions when the app returns from settings.
+/// Device file browser: a flat list of the files this app can open
+/// (PDFs, Office documents, text and images) found in device storage.
+/// Other file kinds and folders are not shown.
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key, this.initialPath});
 
-  /// Directory to open on start; defaults to the shared storage root.
+  /// Directory to scan; defaults to the shared storage root.
   final String? initialPath;
 
   @override
@@ -33,12 +29,13 @@ class FilesScreen extends ConsumerStatefulWidget {
 
 class _FilesScreenState extends ConsumerState<FilesScreen>
     with WidgetsBindingObserver {
+  static const int _maxFiles = 600;
+
   Directory? _current;
   List<FileSystemEntity> _entries = const [];
   String? _error;
   bool _loading = true;
   bool _allowRootAccess = false;
-  bool _noneUsable = false;
 
   @override
   void initState() {
@@ -65,13 +62,12 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     final allowed = await _hasAnyAccess();
     if (!mounted) return;
     if (allowed == _allowRootAccess) {
-      if (allowed) await _reload();
+      if (allowed) await _scan();
     } else {
       await _init();
     }
   }
 
-  /// True if the app can read any of the user's files.
   static Future<bool> _hasAnyAccess() async {
     if (!Platform.isAndroid) return true;
     final manage = await Permission.manageExternalStorage.status;
@@ -107,71 +103,77 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     } else {
       initial = await getOutputDir();
     }
-    await _openDirectory(initial);
+    await _scan(initial);
   }
 
-  Future<void> _reload() async {
-    final dir = _current;
-    if (dir != null) await _openDirectory(dir);
-  }
-
-  Future<void> _openDirectory(Directory dir) async {
+  Future<void> _scan([Directory? target]) async {
+    final dir = target ?? _current;
+    if (dir == null) return;
     setState(() {
       _loading = true;
       _error = null;
     });
-    try {
-      final rawEntries = await dir.list(followLinks: false).toList();
-      final entries = _keepUsable(rawEntries)..sort(_compareEntries);
-      if (!mounted) return;
-      setState(() {
-        _current = dir;
-        _entries = entries;
-        _noneUsable = rawEntries.isNotEmpty &&
-            entries.every((e) => e is! Directory);
-        _loading = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _error = '$error';
-        _loading = false;
-      });
+    final entries = await _listUsableFiles(dir);
+    entries.sort((a, b) {
+      return a.path.toLowerCase().compareTo(b.path.toLowerCase());
+    });
+    if (!mounted) return;
+    setState(() {
+      _current = dir;
+      _entries = entries;
+      _loading = false;
+    });
+  }
+
+  /// Recursively collects the files this app can open, skipping hidden,
+  /// system and app-data folders, capped at [_maxFiles].
+  static Future<List<File>> _listUsableFiles(Directory root) async {
+    const skippedFolders = {
+      'android',
+      'obb',
+      'cache',
+      '.thumbnails',
+      'lobster.dir',
+      'lost.dir',
+      'backup',
+    };
+    final found = <File>[];
+    final pending = <Directory>[root];
+    var visited = 0;
+    while (pending.isNotEmpty && found.length < _maxFiles && visited < 4000) {
+      final dir = pending.removeLast();
+      visited++;
+      List<FileSystemEntity> children;
+      try {
+        children = await dir.list(followLinks: false).toList();
+      } catch (_) {
+        continue;
+      }
+      for (final entry in children) {
+        if (found.length >= _maxFiles) break;
+        if (entry is Directory) {
+          final name = p.basename(entry.path).toLowerCase();
+          if (name.startsWith('.') || skippedFolders.contains(name)) continue;
+          if (pending.length < 800) pending.add(entry);
+        } else if (entry is File && _isUsableFile(entry.path)) {
+          found.add(entry);
+        }
+      }
     }
+    return found;
   }
 
-  /// Keeps folders and the files this app can work with (PDFs, Office
-  /// documents, text and images). Other kinds of files are hidden.
-  static List<FileSystemEntity> _keepUsable(List<FileSystemEntity> entries) {
-    return entries
-        .where((entry) {
-          if (entry is Directory) return true;
-          final format =
-              DocFormat.fromPath(entry.path.replaceAll('\\', '/'));
-          return !(format == DocFormat.other || format == DocFormat.archive);
-        })
-        .toList();
+  static bool _isUsableFile(String path) {
+    final format = DocFormat.fromPath(path.replaceAll('\\', '/'));
+    return format != DocFormat.other && format != DocFormat.archive;
   }
 
-  static int _compareEntries(FileSystemEntity a, FileSystemEntity b) {
-    final aIsDir = a is Directory ? 0 : 1;
-    final bIsDir = b is Directory ? 0 : 1;
-    if (aIsDir != bIsDir) return aIsDir - bIsDir;
-    return a.path.toLowerCase().compareTo(b.path.toLowerCase());
-  }
-
-  /// Asks for storage access step by step:
-  /// "All files access" → legacy storage → media only (Android 13+).
   Future<void> _requestAccess() async {
     final manage = await Permission.manageExternalStorage.request();
     if (!manage.isGranted) {
       final storage = await Permission.storage.request();
       if (!storage.isGranted) {
-        const media = [
-          Permission.photos,
-          Permission.videos,
-          Permission.audio,
-        ];
+        const media = [Permission.photos, Permission.videos, Permission.audio];
         await media.request();
       }
     }
@@ -182,19 +184,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     final path = await FilePicker.getDirectoryPath();
     if (path == null) return;
     setState(() => _allowRootAccess = true);
-    await _openDirectory(Directory(path));
+    await _scan(Directory(path));
   }
 
   Future<void> _openEntry(FileSystemEntity entry) async {
-    if (entry is Directory) {
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => FilesScreen(initialPath: entry.path),
-        ),
-      );
-      return;
-    }
     if (entry is! File) return;
     final file = File(entry.path);
     try {
@@ -301,7 +294,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     final target = File(p.join(file.parent.path, newName.trim()));
     try {
       await file.rename(target.path);
-      await _reload();
+      await _scan();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -332,7 +325,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     try {
       await file.delete();
       await ref.read(recentsControllerProvider.notifier).remove(file.path);
-      await _reload();
+      await _scan();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -342,22 +335,18 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (!_allowRootAccess) {
-      return _buildGate();
-    }
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (!_allowRootAccess) return _buildGate();
+    if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) {
       return MessageView(
         icon: Icons.error_outline,
-        title: 'Could not open this folder',
+        title: 'Could not scan this folder',
         subtitle: _error,
         action: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextButton(
-              onPressed: () => _reload(),
+              onPressed: () => _scan(),
               child: const Text('Retry'),
             ),
             TextButton(
@@ -397,9 +386,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
 
   Widget _buildBrowser() {
     final dir = _current;
-    if (dir == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (dir == null) return const Center(child: CircularProgressIndicator());
     final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,8 +397,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
             children: [
               Expanded(
                 child: Text(
-                  dir.path,
-                  maxLines: 1,
+                  '${_entries.length} file${_entries.length == 1 ? '' : 's'} '
+                  'in ${dir.path}',
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(
                     context,
@@ -419,9 +407,14 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
                 ),
               ),
               IconButton(
+                tooltip: 'Choose a folder',
+                icon: const Icon(Icons.folder_open_outlined),
+                onPressed: _browseViaPicker,
+              ),
+              IconButton(
                 tooltip: 'Refresh',
                 icon: const Icon(Icons.refresh),
-                onPressed: _reload,
+                onPressed: () => _scan(),
               ),
             ],
           ),
@@ -429,16 +422,11 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
         Expanded(
           child: _entries.isEmpty
               ? MessageView(
-                  icon: _noneUsable
-                      ? Icons.filter_alt_off_outlined
-                      : Icons.folder_outlined,
-                  title: _noneUsable
-                      ? 'No supported files here'
-                      : 'Empty folder',
-                  subtitle: _noneUsable
-                      ? 'Only files this app can open are shown: PDF, '
-                          'Word, Excel, PowerPoint, text and images.'
-                      : 'Nothing here yet',
+                  icon: Icons.filter_alt_off_outlined,
+                  title: 'No supported files here',
+                  subtitle: 'Only files this app can open are shown: PDF, '
+                      'Word, Excel, PowerPoint, text and images.\n'
+                      'Tap the folder icon to scan another folder.',
                 )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
@@ -473,26 +461,18 @@ class _EntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isDir = entry is Directory;
-    final icon = isDir
-        ? Icons.folder
-        : DocFormat.fromPath(entry.path).icon;
+    final format = DocFormat.fromPath(entry.path);
     return ListTile(
-      leading: Icon(
-        icon,
-        color: isDir ? scheme.primary : scheme.onSurfaceVariant,
-      ),
+      leading: Icon(format.icon, color: scheme.primary),
       title: Text(
         p.basename(entry.path),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: isDir
-          ? null
-          : Text(
-              DocFormat.fromPath(entry.path).label,
-              style: TextStyle(color: scheme.onSurfaceVariant),
-            ),
+      subtitle: Text(
+        format.label,
+        style: TextStyle(color: scheme.onSurfaceVariant),
+      ),
       trailing: const Icon(Icons.chevron_right, size: 20),
       onTap: onTap,
       onLongPress: onLongPress,
