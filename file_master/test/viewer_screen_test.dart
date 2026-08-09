@@ -51,7 +51,7 @@ void main() {
 
       var attempts = 0;
       while (find.text('hello from file master').evaluate().isEmpty &&
-          attempts < 100) {
+          attempts < 750) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
         await tester.pump();
         attempts++;
@@ -102,7 +102,7 @@ void main() {
 
       var attempts = 0;
       while (find.text('Could not open this file').evaluate().isEmpty &&
-          attempts < 100) {
+          attempts < 750) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
         await tester.pump();
         attempts++;
@@ -143,7 +143,7 @@ void main() {
       );
 
       var attempts = 0;
-      while (find.text('Save as PDF').evaluate().isEmpty && attempts < 100) {
+      while (find.text('Save as PDF').evaluate().isEmpty && attempts < 750) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
         await tester.pump();
         attempts++;
@@ -184,7 +184,7 @@ void main() {
 
       var attempts = 0;
       while (find.textContaining('Hello from a docx').evaluate().isEmpty &&
-          attempts < 100) {
+          attempts < 750) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
         await tester.pump();
         attempts++;

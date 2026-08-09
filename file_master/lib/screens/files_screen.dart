@@ -38,6 +38,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   String? _error;
   bool _loading = true;
   bool _allowRootAccess = false;
+  bool _noneUsable = false;
 
   @override
   void initState() {
@@ -120,12 +121,14 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
       _error = null;
     });
     try {
-      final entries = await dir.list(followLinks: false).toList();
-      entries.sort(_compareEntries);
+      final rawEntries = await dir.list(followLinks: false).toList();
+      final entries = _keepUsable(rawEntries)..sort(_compareEntries);
       if (!mounted) return;
       setState(() {
         _current = dir;
         _entries = entries;
+        _noneUsable = rawEntries.isNotEmpty &&
+            entries.every((e) => e is! Directory);
         _loading = false;
       });
     } catch (error) {
@@ -135,6 +138,19 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
         _loading = false;
       });
     }
+  }
+
+  /// Keeps folders and the files this app can work with (PDFs, Office
+  /// documents, text and images). Other kinds of files are hidden.
+  static List<FileSystemEntity> _keepUsable(List<FileSystemEntity> entries) {
+    return entries
+        .where((entry) {
+          if (entry is Directory) return true;
+          final format =
+              DocFormat.fromPath(entry.path.replaceAll('\\', '/'));
+          return !(format == DocFormat.other || format == DocFormat.archive);
+        })
+        .toList();
   }
 
   static int _compareEntries(FileSystemEntity a, FileSystemEntity b) {
@@ -412,10 +428,17 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
         ),
         Expanded(
           child: _entries.isEmpty
-              ? const MessageView(
-                  icon: Icons.folder_outlined,
-                  title: 'Empty folder',
-                  subtitle: 'Nothing here yet',
+              ? MessageView(
+                  icon: _noneUsable
+                      ? Icons.filter_alt_off_outlined
+                      : Icons.folder_outlined,
+                  title: _noneUsable
+                      ? 'No supported files here'
+                      : 'Empty folder',
+                  subtitle: _noneUsable
+                      ? 'Only files this app can open are shown: PDF, '
+                          'Word, Excel, PowerPoint, text and images.'
+                      : 'Nothing here yet',
                 )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
