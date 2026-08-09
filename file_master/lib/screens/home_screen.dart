@@ -150,22 +150,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const AdBanner(),
-          NavigationBar(
-            selectedIndex: _tabIndex,
-            onDestinationSelected: (index) => setState(() => _tabIndex = index),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.history),
-                selectedIcon: Icon(Icons.history),
-                label: 'Recents',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.folder_outlined),
-                selectedIcon: Icon(Icons.folder),
-                label: 'Files',
-              ),
-            ],
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: const AdBanner(),
+          ),
+          SizedBox(
+            height: 80,
+            child: NavigationBar(
+              selectedIndex: _tabIndex,
+              onDestinationSelected: (index) => setState(() => _tabIndex = index),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.history),
+                  selectedIcon: Icon(Icons.history),
+                  label: 'Recents',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.folder_outlined),
+                  selectedIcon: Icon(Icons.folder),
+                  label: 'Files',
+                ),
+              ],
+            ),
           ),
         ],
       ),
