@@ -10,9 +10,15 @@ import 'package:archive/archive.dart';
 Future<String> extractOfficeText(String path) async {
   final bytes = await File(path).readAsBytes();
   final lower = path.toLowerCase();
-  if (lower.endsWith('.docx')) return _docxText(bytes);
-  if (lower.endsWith('.xlsx')) return _xlsxText(bytes);
-  if (lower.endsWith('.pptx')) return _pptxText(bytes);
+  try {
+    if (lower.endsWith('.docx')) return _docxText(bytes);
+    if (lower.endsWith('.xlsx')) return _xlsxText(bytes);
+    if (lower.endsWith('.pptx')) return _pptxText(bytes);
+  } on FormatException {
+    rethrow;
+  } catch (_) {
+    throw const FormatException('Corrupt or unreadable Office file');
+  }
   throw UnsupportedError('Not an Office file: $path');
 }
 
@@ -85,6 +91,9 @@ String _pptxText(Uint8List bytes) {
           final nb = int.parse(RegExp(r'(\d+)').firstMatch(b)!.group(1)!);
           return na.compareTo(nb);
         });
+  if (slideNames.isEmpty) {
+    throw const FormatException('Corrupt or unreadable PowerPoint file');
+  }
 
   final buffer = StringBuffer();
   for (final name in slideNames) {
@@ -120,6 +129,9 @@ String _xlsxText(Uint8List bytes) {
           )
           .toList()
         ..sort();
+  if (sheetNames.isEmpty) {
+    throw const FormatException('Corrupt or unreadable Excel file');
+  }
   final buffer = StringBuffer();
   for (final name in sheetNames) {
     final xml = _readEntry(archive, name);

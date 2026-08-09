@@ -16,9 +16,11 @@ import 'viewer_screen.dart';
 
 /// Device file browser.
 ///
-/// On Android 11+ this requires "All files access"
-/// ([Permission.manageExternalStorage]); without it the screen shows a gate
-/// with a link to system settings, or an alternative folder-picker mode.
+/// Browsing the device works with any of:
+///  - "All files access" on Android 11+ (full storage),
+///  - legacy storage permission on Android 10,
+///  - "Files and media" on Android 13+ (media files only, decided by the OS).
+/// The screen re-checks permissions when the app returns from settings.
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key, this.initialPath});
 
@@ -29,7 +31,8 @@ class FilesScreen extends ConsumerStatefulWidget {
   ConsumerState<FilesScreen> createState() => _FilesScreenState();
 }
 
-class _FilesScreenState extends ConsumerState<FilesScreen> {
+class _FilesScreenState extends ConsumerState<FilesScreen>
+    with WidgetsBindingObserver {
   Directory? _current;
   List<FileSystemEntity> _entries = const [];
   String? _error;
@@ -39,7 +42,51 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _init();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The user returns from the permission/settings screen.
+    if (state == AppLifecycleState.resumed) {
+      _refresh();
+    }
+  }
+
+  Future<void> _refresh() async {
+    final allowed = await _hasAnyAccess();
+    if (!mounted) return;
+    if (allowed == _allowRootAccess) {
+      if (allowed) await _reload();
+    } else {
+      await _init();
+    }
+  }
+
+  /// True if the app can read any of the user's files.
+  static Future<bool> _hasAnyAccess() async {
+    if (!Platform.isAndroid) return true;
+    final manage = await Permission.manageExternalStorage.status;
+    if (manage.isGranted) return true;
+    final storage = await Permission.storage.status;
+    if (storage.isGranted) return true;
+    const media = [
+      Permission.photos,
+      Permission.videos,
+      Permission.audio,
+    ];
+    final statuses = await media.request();
+    for (final status in statuses.values) {
+      if (status.isGranted || status.isLimited) return true;
+    }
+    return false;
   }
 
   Future<void> _init() async {
@@ -47,12 +94,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       _loading = true;
       _error = null;
     });
-    final manageStatus = await Permission.manageExternalStorage.status;
-    final storageStatus = await Permission.storage.status;
-    final allowRoot =
-        manageStatus.isGranted ||
-        storageStatus.isGranted ||
-        !Platform.isAndroid;
+    final allowRoot = await _hasAnyAccess();
+    if (!mounted) return;
     setState(() => _allowRootAccess = allowRoot);
 
     Directory initial;
@@ -101,14 +144,22 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     return a.path.toLowerCase().compareTo(b.path.toLowerCase());
   }
 
+  /// Asks for storage access step by step:
+  /// "All files access" → legacy storage → media only (Android 13+).
   Future<void> _requestAccess() async {
-    final status = await Permission.manageExternalStorage.request();
-    if (status.isGranted) {
-      await _init();
-      return;
+    final manage = await Permission.manageExternalStorage.request();
+    if (!manage.isGranted) {
+      final storage = await Permission.storage.request();
+      if (!storage.isGranted) {
+        const media = [
+          Permission.photos,
+          Permission.videos,
+          Permission.audio,
+        ];
+        await media.request();
+      }
     }
-    // "All files access" can only be enabled from system settings.
-    await openAppSettings();
+    await _init();
   }
 
   Future<void> _browseViaPicker() async {
@@ -122,7 +173,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     if (entry is Directory) {
       if (!mounted) return;
       Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => FilesScreen(initialPath: entry.path)),
+        MaterialPageRoute(
+          builder: (_) => FilesScreen(initialPath: entry.path),
+        ),
       );
       return;
     }
@@ -139,14 +192,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       );
       await ref.read(recentsControllerProvider.notifier).recordOpen(recent);
       if (!mounted) return;
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)));
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not open file: $error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not open file: $error')));
     }
   }
 
@@ -174,9 +226,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
               title: const Text('Share'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                SharePlus.instance.share(
-                  ShareParams(files: [XFile(file.path)]),
-                );
+                SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
               },
             ),
             ListTile(
@@ -238,9 +288,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       await _reload();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not rename: $error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not rename: $error')));
     }
   }
 
@@ -270,9 +319,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       await _reload();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not delete: $error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Could not delete: $error')));
     }
   }
 
@@ -289,9 +337,18 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         icon: Icons.error_outline,
         title: 'Could not open this folder',
         subtitle: _error,
-        action: TextButton(
-          onPressed: () => _reload(),
-          child: const Text('Retry'),
+        action: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextButton(
+              onPressed: () => _reload(),
+              child: const Text('Retry'),
+            ),
+            TextButton(
+              onPressed: _browseViaPicker,
+              child: const Text('Choose a folder instead'),
+            ),
+          ],
         ),
       );
     }
@@ -302,9 +359,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     return MessageView(
       icon: Icons.folder_special_outlined,
       title: 'Storage access needed',
-      subtitle:
-          'Allow File Master "All files access" in system settings '
-          'to browse your device storage.',
+      subtitle: 'Allow "All files access" to see your documents, or '
+          '"Files and media" access to see photos, videos and audio.',
       action: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -341,9 +397,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                   dir.path,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ),
               IconButton(
@@ -395,7 +451,9 @@ class _EntryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isDir = entry is Directory;
-    final icon = isDir ? Icons.folder : DocFormat.fromPath(entry.path).icon;
+    final icon = isDir
+        ? Icons.folder
+        : DocFormat.fromPath(entry.path).icon;
     return ListTile(
       leading: Icon(
         icon,

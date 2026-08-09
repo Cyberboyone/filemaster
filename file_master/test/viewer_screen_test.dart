@@ -1,11 +1,23 @@
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:file_master/models/recent_file.dart';
 import 'package:file_master/screens/viewer_screen.dart';
 import 'package:file_master/utils/doc_format.dart';
+
+Future<void> _writeZip(String path, Map<String, String> entries) async {
+  final archive = Archive();
+  for (final entry in entries.entries) {
+    archive.addFile(
+      ArchiveFile(entry.key, entry.value.codeUnits.length, entry.value.codeUnits),
+    );
+  }
+  final bytes = ZipEncoder().encode(archive);
+  await File(path).writeAsBytes(bytes);
+}
 
 RecentFile _file({
   required String name,
@@ -69,7 +81,7 @@ void main() {
     );
   });
 
-  testWidgets('office files show unsupported message', (tester) async {
+  testWidgets('corrupt office files are reported cleanly', (tester) async {
     await tester.runAsync(() async {
       final dir = await Directory.systemTemp.createTemp('fm_viewer_test');
       addTearDown(() => dir.delete(recursive: true));
@@ -87,12 +99,99 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('Offline preview for PowerPoint files is not'),
-        findsOneWidget,
+      var attempts = 0;
+      while (find.text('Could not open this file').evaluate().isEmpty &&
+          attempts < 100) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await tester.pump();
+        attempts++;
+      }
+
+      expect(find.text('Could not open this file'), findsOneWidget);
+      expect(find.text('Save as PDF'), findsNothing);
+    });
+  });
+
+  testWidgets('office files without text show an informative message',
+      (tester) async {
+    await tester.runAsync(() async {
+      final dir = await Directory.systemTemp.createTemp('fm_viewer_test');
+      addTearDown(() => dir.delete(recursive: true));
+      final path = '${dir.path}/empty.pptx';
+
+      final emptySlide = '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>
+''';
+      await _writeZip(path, {
+        '[Content_Types].xml': '<Types/>',
+        '_rels/.rels': '<Relationships/>',
+        'ppt/slides/slide1.xml': emptySlide,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ViewerScreen(
+            file: _file(
+              name: 'empty.pptx',
+              path: path,
+              format: DocFormat.powerpoint,
+            ),
+          ),
+        ),
       );
+
+      var attempts = 0;
+      while (find.text('Save as PDF').evaluate().isEmpty && attempts < 100) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await tester.pump();
+        attempts++;
+      }
+
+      expect(find.textContaining('No readable text'), findsOneWidget);
+      expect(find.text('Save as PDF'), findsOneWidget);
+    });
+  });
+
+  testWidgets('docx content is extracted and shown', (tester) async {
+    await tester.runAsync(() async {
+      final dir = await Directory.systemTemp.createTemp('fm_viewer_test');
+      addTearDown(() => dir.delete(recursive: true));
+      final path = '${dir.path}/notes.docx';
+
+      final docXml = '''
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Hello from a docx</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Second paragraph</w:t></w:r></w:p>
+  </w:body>
+</w:document>''';
+      await _writeZip(path, {
+        '[Content_Types].xml': '<Types/>',
+        '_rels/.rels': '<Relationships/>',
+        'word/document.xml': docXml,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ViewerScreen(
+            file: _file(name: 'notes.docx', path: path, format: DocFormat.word),
+          ),
+        ),
+      );
+
+      var attempts = 0;
+      while (find.textContaining('Hello from a docx').evaluate().isEmpty &&
+          attempts < 100) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await tester.pump();
+        attempts++;
+      }
+
+      expect(find.textContaining('Hello from a docx'), findsOneWidget);
+      expect(find.text('Save as PDF'), findsOneWidget);
     });
   });
 

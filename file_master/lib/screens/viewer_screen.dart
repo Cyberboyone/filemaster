@@ -3,12 +3,24 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:pdfx/pdfx.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/recent_file.dart';
 import '../utils/doc_format.dart';
+import '../utils/office_utils.dart';
+import '../utils/output_utils.dart';
+import '../utils/pdf_builder.dart';
+
+/// True for Office formats we can read offline (the modern XML based ones).
+bool _isConvertibleOffice(String path) {
+  final lower = path.toLowerCase();
+  return lower.endsWith('.docx') ||
+      lower.endsWith('.xlsx') ||
+      lower.endsWith('.pptx');
+}
 
 class ViewerScreen extends StatelessWidget {
   const ViewerScreen({super.key, required this.file});
@@ -83,14 +95,16 @@ class ViewerScreen extends StatelessWidget {
               DocFormat.text => _TextViewer(path: file.path),
               DocFormat.word ||
               DocFormat.excel ||
-              DocFormat.powerpoint => _UnsupportedViewer(
-                file: file,
-                icon: file.format.icon,
-                message:
-                    'Offline preview for ${file.format.label} files is not '
-                    'available. Use Share to open it in another app, or '
-                    'Convert (from the home screen) to turn it into a PDF.',
-              ),
+              DocFormat.powerpoint => _isConvertibleOffice(pathFile.path)
+                  ? _OfficeDocViewer(file: file)
+                  : _UnsupportedViewer(
+                      file: file,
+                      icon: file.format.icon,
+                      message:
+                          'Offline preview for ${file.format.label} files is '
+                          'not available. Use Share to open it in another '
+                          'app.',
+                    ),
               _ => _UnsupportedViewer(
                 file: file,
                 icon: file.format.icon,
@@ -273,6 +287,94 @@ class _TextResult {
   final String content;
   final bool truncated;
   final int totalBytes;
+}
+
+class _OfficeDocViewer extends StatefulWidget {
+  const _OfficeDocViewer({required this.file});
+
+  final RecentFile file;
+
+  @override
+  State<_OfficeDocViewer> createState() => _OfficeDocViewerState();
+}
+
+class _OfficeDocViewerState extends State<_OfficeDocViewer> {
+  late final Future<String> _load = _extract();
+
+  Future<String> _extract() async {
+    final text = await extractOfficeText(widget.file.path);
+    return text.trim().isEmpty ? '(No readable text found in this file.)' : text;
+  }
+
+  Future<void> _saveAsPdf(String content) async {
+    final baseName = sanitizeFileName(
+      p.basenameWithoutExtension(widget.file.path),
+    );
+    final fileName = '${baseName}_converted.pdf';
+    try {
+      final bytes = await buildTextPdf(
+        title: p.basename(widget.file.path),
+        content: content,
+      );
+      final file = await saveOutput(bytes, fileName);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved to ${file.path}')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save PDF: $error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: _load,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return _CenterMessage(
+            icon: Icons.description_outlined,
+            title: 'Could not open this file',
+            subtitle:
+                '${widget.file.name} is not a readable Office document. '
+                'Use Share to open it in another app.',
+          );
+        }
+        final content = snapshot.data!;
+        return Column(
+          children: [
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              height: 48,
+              child: FilledButton.icon(
+                onPressed: () => _saveAsPdf(content),
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                label: const Text('Save as PDF'),
+              ),
+            ),
+            Expanded(
+              child: SelectionArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    content,
+                    style: const TextStyle(fontSize: 15, height: 1.4),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _UnsupportedViewer extends StatelessWidget {
