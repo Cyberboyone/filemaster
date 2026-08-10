@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/recent_file.dart';
+import '../theme/format_colors.dart';
 import '../utils/doc_format.dart';
 
 class RecentFileTile extends StatelessWidget {
@@ -31,21 +32,35 @@ class RecentFileTile extends StatelessWidget {
         ),
         child: Icon(Icons.delete_outline, color: scheme.onErrorContainer),
       ),
-      child: ListTile(
-        onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        leading: _FormatIcon(format: file.format),
-        title: Text(
-          file.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w500),
+      child: Material(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        child: ListTile(
+          onTap: onTap,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 4,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          leading: _FormatIcon(format: file.format),
+          title: Text(
+            file.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              '${file.format.label}  •  ${_relativeTime(context, file.lastOpened)}',
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          trailing: _formatSize(context, file.sizeBytes),
         ),
-        subtitle: Text(
-          '${file.format.label}  •  ${_relativeTime(context, file.lastOpened)}',
-          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-        ),
-        trailing: _formatSize(context, file.sizeBytes),
       ),
     );
   }
@@ -86,15 +101,20 @@ class _FormatIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final color = FormatColors.of(format);
     return Container(
       width: 44,
       height: 44,
       decoration: BoxDecoration(
-        color: scheme.primaryContainer,
-        borderRadius: BorderRadius.circular(12),
+        color: FormatColors.container(color, brightness),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Icon(format.icon, color: scheme.onPrimaryContainer, size: 24),
+      child: Icon(
+        format.icon,
+        color: FormatColors.glyph(color, brightness),
+        size: 24,
+      ),
     );
   }
 }

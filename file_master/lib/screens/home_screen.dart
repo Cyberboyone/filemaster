@@ -54,59 +54,90 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.folder_open),
-              title: const Text('Open file'),
-              subtitle: const Text('Pick a file from your device'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _pickAndRecord();
-              },
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        final tools = <({IconData icon, String title, VoidCallback onTap})>[
+          (
+            icon: Icons.folder_open_outlined,
+            title: 'Open file',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _pickAndRecord();
+            },
+          ),
+          (
+            icon: Icons.document_scanner_outlined,
+            title: 'Scan to PDF',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _openTool(const ScanScreen());
+            },
+          ),
+          (
+            icon: Icons.note_add_outlined,
+            title: 'Create PDF',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _openTool(const CreatePdfScreen());
+            },
+          ),
+          (
+            icon: Icons.call_merge_outlined,
+            title: 'Merge PDFs',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _openTool(const MergePdfScreen());
+            },
+          ),
+          (
+            icon: Icons.swap_horiz_outlined,
+            title: 'Convert',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _openTool(const ConvertScreen());
+            },
+          ),
+        ];
+        return SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 380),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+                    child: Text(
+                      'Quick actions',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.9,
+                    children: [
+                      for (final tool in tools)
+                        _QuickActionCard(
+                          icon: tool.icon,
+                          title: tool.title,
+                          onTap: tool.onTap,
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.document_scanner_outlined),
-              title: const Text('Scan to PDF'),
-              subtitle: const Text('Camera → one PDF document'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _openTool(const ScanScreen());
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.note_add_outlined),
-              title: const Text('Create PDF'),
-              subtitle: const Text('Write text, save as PDF'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _openTool(const CreatePdfScreen());
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.call_merge),
-              title: const Text('Merge PDFs'),
-              subtitle: const Text('Combine several PDFs into one'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _openTool(const MergePdfScreen());
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.swap_horiz_outlined),
-              title: const Text('Convert'),
-              subtitle: const Text('Files ↔ PDF, PDF → images'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _openTool(const ConvertScreen());
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -161,7 +192,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onDestinationSelected: (index) => setState(() => _tabIndex = index),
               destinations: const [
                 NavigationDestination(
-                  icon: Icon(Icons.history),
+                  icon: Icon(Icons.history_outlined),
                   selectedIcon: Icon(Icons.history),
                   label: 'Recents',
                 ),
@@ -179,6 +210,59 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         tooltip: 'Quick actions',
         onPressed: _showQuickActions,
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: scheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, size: 20, color: scheme.onSecondaryContainer),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

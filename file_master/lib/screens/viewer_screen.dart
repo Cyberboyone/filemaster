@@ -14,6 +14,7 @@ import '../utils/office_utils.dart';
 import '../utils/output_utils.dart';
 import '../utils/pdf_builder.dart';
 import '../utils/text_pager.dart';
+import '../widgets/docx_document_view.dart';
 
 /// True for Office formats we can read offline (the modern XML based ones).
 bool _isConvertibleOffice(String path) {
@@ -94,7 +95,16 @@ class ViewerScreen extends StatelessWidget {
               DocFormat.pdf => _PdfViewer(path: file.path),
               DocFormat.image => _ImageViewer(path: file.path),
               DocFormat.text => _TextViewer(path: file.path),
-              DocFormat.word ||
+              DocFormat.word => pathFile.path.toLowerCase().endsWith('.docx')
+                  ? _DocxViewer(file: file)
+                  : _UnsupportedViewer(
+                      file: file,
+                      icon: file.format.icon,
+                      message:
+                          'Offline preview for older Word files (.doc) is '
+                          'not available. Use Share to open it in another '
+                          'app, or Convert to turn it into a PDF.',
+                    ),
               DocFormat.excel ||
               DocFormat.powerpoint => _isConvertibleOffice(pathFile.path)
                   ? _OfficeDocViewer(file: file)
@@ -440,6 +450,66 @@ class _TextResult {
   final int totalBytes;
 }
 
+class _DocxViewer extends StatefulWidget {
+  const _DocxViewer({required this.file});
+
+  final RecentFile file;
+
+  @override
+  State<_DocxViewer> createState() => _DocxViewerState();
+}
+
+class _DocxViewerState extends State<_DocxViewer> {
+  late final Future<String> _content = _extract();
+
+  Future<String> _extract() async {
+    final text = await extractOfficeText(widget.file.path);
+    return text.trim().isEmpty ? '(No readable text found in this file.)' : text;
+  }
+
+  Future<void> _convertToPdf() async {
+    final baseName = sanitizeFileName(
+      p.basenameWithoutExtension(widget.file.path),
+    );
+    final fileName = '${baseName}_converted.pdf';
+    try {
+      final content = await _content;
+      final bytes = await buildTextPdf(
+        title: p.basename(widget.file.path),
+        content: content,
+      );
+      final file = await saveOutput(bytes, fileName);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved to ${file.path}')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save PDF: $error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(child: DocxDocumentView(path: widget.file.path)),
+        _ToolsBar(
+          tools: [
+            _ToolItem(
+              icon: Icons.picture_as_pdf_outlined,
+              label: 'Convert',
+              onTap: _convertToPdf,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _OfficeDocViewer extends StatefulWidget {
   const _OfficeDocViewer({required this.file});
 
@@ -595,39 +665,67 @@ class _ToolsBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.surfaceContainerHigh,
+      color: scheme.surfaceContainerLow,
       child: SafeArea(
         top: false,
-        child: SizedBox(
-          height: 68,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              for (final tool in tools)
-                InkWell(
-                  onTap: tool.onTap,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 6,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(tool.icon, size: 24, color: scheme.primary),
-                        const SizedBox(height: 4),
-                        Text(
-                          tool.label,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: scheme.outlineVariant.withValues(alpha: 0.4),
+              ),
+            ),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final tool in tools)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: _ToolButton(item: tool),
                   ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToolButton extends StatelessWidget {
+  const _ToolButton({required this.item});
+
+  final _ToolItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.secondaryContainer,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: item.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(item.icon, size: 22, color: scheme.onSecondaryContainer),
+              const SizedBox(height: 2),
+              Text(
+                item.label,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSecondaryContainer,
                 ),
+              ),
             ],
           ),
         ),

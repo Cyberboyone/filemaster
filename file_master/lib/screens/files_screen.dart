@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
+import '../theme/format_colors.dart';
 import '../utils/doc_format.dart';
 import '../utils/output_utils.dart';
 import '../widgets/message_view.dart';
@@ -461,21 +462,47 @@ class _EntryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
     final format = DocFormat.fromPath(entry.path);
-    return ListTile(
-      leading: Icon(format.icon, color: scheme.primary),
-      title: Text(
-        p.basename(entry.path),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+    final color = FormatColors.of(format);
+    return Material(
+      color: scheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(16),
+      child: ListTile(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: FormatColors.container(color, brightness),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            format.icon,
+            color: FormatColors.glyph(color, brightness),
+            size: 24,
+          ),
+        ),
+        title: Text(
+          p.basename(entry.path),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            format.label,
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right, size: 20),
+        onTap: onTap,
+        onLongPress: onLongPress,
       ),
-      subtitle: Text(
-        format.label,
-        style: TextStyle(color: scheme.onSurfaceVariant),
-      ),
-      trailing: const Icon(Icons.chevron_right, size: 20),
-      onTap: onTap,
-      onLongPress: onLongPress,
     );
   }
 }

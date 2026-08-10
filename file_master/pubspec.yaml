@@ -51,6 +51,7 @@ dependencies:
   printing: ^5.15.0
   pdfx: ^2.9.2
   archive: ^4.0.9
+  xml: ^7.0.1
 
 dev_dependencies:
   flutter_test:
