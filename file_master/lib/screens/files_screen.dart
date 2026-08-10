@@ -15,9 +15,8 @@ import '../utils/output_utils.dart';
 import '../widgets/message_view.dart';
 import 'viewer_screen.dart';
 
-/// Device file browser: a flat list of the files this app can open
-/// (PDFs, Office documents, text and images) found in device storage.
-/// Other file kinds and folders are not shown.
+/// Device file browser grouped by format type (PDF, Word, PowerPoint, Excel,
+/// Text). Image files are excluded.
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key, this.initialPath});
 
@@ -38,6 +37,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   bool _loading = true;
   bool _allowRootAccess = false;
 
+  /// Which sections are expanded (format label -> expanded).
+  final Map<String, bool> _expanded = {};
+
   @override
   void initState() {
     super.initState();
@@ -53,7 +55,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // The user returns from the permission/settings screen.
     if (state == AppLifecycleState.resumed) {
       _refresh();
     }
@@ -128,6 +129,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
 
   /// Recursively collects the files this app can open, skipping hidden,
   /// system and app-data folders, capped at [_maxFiles].
+  /// Images are excluded.
   static Future<List<File>> _listUsableFiles(Directory root) async {
     const skippedFolders = {
       'android',
@@ -166,7 +168,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
 
   static bool _isUsableFile(String path) {
     final format = DocFormat.fromPath(path.replaceAll('\\', '/'));
-    return format != DocFormat.other && format != DocFormat.archive;
+    // Exclude images, archives, and other unsupported formats.
+    return format != DocFormat.other &&
+        format != DocFormat.archive &&
+        format != DocFormat.image;
   }
 
   Future<void> _requestAccess() async {
@@ -334,6 +339,23 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     }
   }
 
+  /// Groups entries by format type.
+  Map<DocFormat, List<File>> _grouped() {
+    final grouped = <DocFormat, List<File>>{
+      DocFormat.pdf: [],
+      DocFormat.word: [],
+      DocFormat.powerpoint: [],
+      DocFormat.excel: [],
+      DocFormat.text: [],
+    };
+    for (final entry in _entries) {
+      if (entry is! File) continue;
+      final format = DocFormat.fromPath(entry.path);
+      grouped[format]?.add(entry);
+    }
+    return grouped;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_allowRootAccess) return _buildGate();
@@ -389,6 +411,11 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     final dir = _current;
     if (dir == null) return const Center(child: CircularProgressIndicator());
     final scheme = Theme.of(context).colorScheme;
+    final grouped = _grouped();
+    final sections = grouped.entries
+        .where((e) => e.value.isNotEmpty)
+        .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -421,24 +448,34 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
           ),
         ),
         Expanded(
-          child: _entries.isEmpty
+          child: sections.isEmpty
               ? MessageView(
                   icon: Icons.filter_alt_off_outlined,
                   title: 'No supported files here',
                   subtitle: 'Only files this app can open are shown: PDF, '
-                      'Word, Excel, PowerPoint, text and images.\n'
+                      'Word, PowerPoint, Excel and text.\n'
                       'Tap the folder icon to scan another folder.',
                 )
-              : ListView.separated(
+              : ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-                  itemCount: _entries.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 4),
+                  itemCount: sections.length,
                   itemBuilder: (context, index) {
-                    final entry = _entries[index];
-                    return _EntryTile(
-                      entry: entry,
-                      onTap: () => _openEntry(entry),
-                      onLongPress: () => _showActions(entry),
+                    final format = sections[index].key;
+                    final files = sections[index].value;
+                    return _FormatSection(
+                      format: format,
+                      files: files,
+                      expanded:
+                          _expanded[format.label] ?? (sections.length <= 3),
+                      onToggle: () {
+                        setState(() {
+                          _expanded[format.label] =
+                              !(_expanded[format.label] ??
+                                  (sections.length <= 3));
+                        });
+                      },
+                      onTapFile: _openEntry,
+                      onLongPressFile: _showActions,
                     );
                   },
                 ),
@@ -448,60 +485,168 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   }
 }
 
-class _EntryTile extends StatelessWidget {
-  const _EntryTile({
-    required this.entry,
+class _FormatSection extends StatelessWidget {
+  const _FormatSection({
+    required this.format,
+    required this.files,
+    required this.expanded,
+    required this.onToggle,
+    required this.onTapFile,
+    required this.onLongPressFile,
+  });
+
+  final DocFormat format;
+  final List<File> files;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final void Function(FileSystemEntity) onTapFile;
+  final void Function(FileSystemEntity) onLongPressFile;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final brightness = Theme.of(context).brightness;
+    final color = FormatColors.of(format);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: FormatColors.container(color, brightness),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        format.icon,
+                        color: FormatColors.glyph(color, brightness),
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            format.label,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          Text(
+                            '${files.length} file${files.length == 1 ? '' : 's'}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      expanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (expanded) ...[
+              const Divider(height: 1),
+              for (final file in files)
+                _FormatFileTile(
+                  file: file,
+                  onTap: () => onTapFile(file),
+                  onLongPress: () => onLongPressFile(file),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FormatFileTile extends StatelessWidget {
+  const _FormatFileTile({
+    required this.file,
     required this.onTap,
     required this.onLongPress,
   });
 
-  final FileSystemEntity entry;
+  final File file;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final format = DocFormat.fromPath(file.path);
     final brightness = Theme.of(context).brightness;
-    final format = DocFormat.fromPath(entry.path);
     final color = FormatColors.of(format);
+
     return Material(
-      color: scheme.surfaceContainerLow,
-      borderRadius: BorderRadius.circular(16),
-      child: ListTile(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        leading: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: FormatColors.container(color, brightness),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Icon(
-            format.icon,
-            color: FormatColors.glyph(color, brightness),
-            size: 24,
-          ),
-        ),
-        title: Text(
-          p.basename(entry.path),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Text(
-            format.label,
-            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-          ),
-        ),
-        trailing: const Icon(Icons.chevron_right, size: 20),
+      color: Colors.transparent,
+      child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: FormatColors.container(color, brightness),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  format.icon,
+                  color: FormatColors.glyph(color, brightness),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  p.basename(file.path),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: scheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

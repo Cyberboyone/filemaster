@@ -59,9 +59,9 @@ class ViewerScreen extends StatelessWidget {
       );
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
+ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Could not print: $error')));
+      ).showSnackBar(SnackBar(content: Text('Could not save PDF: $error')));
     }
   }
 
@@ -105,9 +105,18 @@ class ViewerScreen extends StatelessWidget {
                           'not available. Use Share to open it in another '
                           'app, or Convert to turn it into a PDF.',
                     ),
-              DocFormat.excel ||
+              DocFormat.excel => _isConvertibleOffice(pathFile.path)
+                  ? _ExcelViewer(file: file)
+                  : _UnsupportedViewer(
+                      file: file,
+                      icon: file.format.icon,
+                      message:
+                          'Offline preview for ${file.format.label} files is '
+                          'not available. Use Share to open it in another '
+                          'app.',
+                    ),
               DocFormat.powerpoint => _isConvertibleOffice(pathFile.path)
-                  ? _OfficeDocViewer(file: file)
+                  ? _PptxViewer(file: file)
                   : _UnsupportedViewer(
                       file: file,
                       icon: file.format.icon,
@@ -450,6 +459,10 @@ class _TextResult {
   final int totalBytes;
 }
 
+// ---------------------------------------------------------------------------
+// DOCX Viewer – page-like view matching the Word/PDF screenshot style
+// ---------------------------------------------------------------------------
+
 class _DocxViewer extends StatefulWidget {
   const _DocxViewer({required this.file});
 
@@ -510,29 +523,44 @@ class _DocxViewerState extends State<_DocxViewer> {
   }
 }
 
-class _OfficeDocViewer extends StatefulWidget {
-  const _OfficeDocViewer({required this.file});
+// ---------------------------------------------------------------------------
+// Excel Viewer – sheet tabs with scrollable table grid
+// ---------------------------------------------------------------------------
+
+class _ExcelViewer extends StatefulWidget {
+  const _ExcelViewer({required this.file});
 
   final RecentFile file;
 
   @override
-  State<_OfficeDocViewer> createState() => _OfficeDocViewerState();
+  State<_ExcelViewer> createState() => _ExcelViewerState();
 }
 
-class _OfficeDocViewerState extends State<_OfficeDocViewer> {
-  late final Future<String> _load = _extract();
+class _ExcelViewerState extends State<_ExcelViewer> {
+  late final Future<List<ExcelSheet>> _load = _loadSheets();
+  int _activeSheet = 0;
 
-  Future<String> _extract() async {
-    final text = await extractOfficeText(widget.file.path);
-    return text.trim().isEmpty ? '(No readable text found in this file.)' : text;
+  Future<List<ExcelSheet>> _loadSheets() async {
+    final bytes = await File(widget.file.path).readAsBytes();
+    return extractExcelSheets(bytes);
   }
 
-  Future<void> _convertToPdf(String content) async {
+  Future<void> _convertToPdf() async {
     final baseName = sanitizeFileName(
       p.basenameWithoutExtension(widget.file.path),
     );
     final fileName = '${baseName}_converted.pdf';
     try {
+      final sheets = await _load;
+      final buffer = StringBuffer();
+      for (final sheet in sheets) {
+        buffer.writeln('--- ${sheet.name} ---');
+        for (final row in sheet.rows) {
+          buffer.writeln(row.join('\t'));
+        }
+        buffer.writeln();
+      }
+      final content = buffer.toString();
       final bytes = await buildTextPdf(
         title: p.basename(widget.file.path),
         content: content,
@@ -552,7 +580,8 @@ class _OfficeDocViewerState extends State<_OfficeDocViewer> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<String>(
+    final scheme = Theme.of(context).colorScheme;
+    return FutureBuilder<List<ExcelSheet>>(
       future: _load,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
@@ -560,23 +589,385 @@ class _OfficeDocViewerState extends State<_OfficeDocViewer> {
         }
         if (snapshot.hasError) {
           return _CenterMessage(
-            icon: Icons.description_outlined,
+            icon: Icons.table_chart_outlined,
             title: 'Could not open this file',
             subtitle:
-                '${widget.file.name} is not a readable Office document. '
+                '${widget.file.name} is not a readable Excel document. '
                 'Use Share to open it in another app.',
           );
         }
-        final content = snapshot.data!;
+        final sheets = snapshot.data!;
+        if (sheets.isEmpty) {
+          return _CenterMessage(
+            icon: Icons.table_chart_outlined,
+            title: 'Empty spreadsheet',
+            subtitle: 'This file has no readable data.',
+          );
+        }
+        final index = _activeSheet.clamp(0, sheets.length - 1);
+        final sheet = sheets[index];
         return Column(
           children: [
-            Expanded(child: _PagedTextViewer(content: content)),
+            // Sheet tabs
+            if (sheets.length > 1)
+              Container(
+                height: 40,
+                color: scheme.surfaceContainerLow,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  itemCount: sheets.length,
+                  itemBuilder: (context, i) {
+                    final selected = i == index;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 6,
+                      ),
+                      child: ChoiceChip(
+                        label: Text(
+                          sheets[i].name,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: selected
+                                ? scheme.onPrimaryContainer
+                                : scheme.onSurface,
+                          ),
+                        ),
+                        selected: selected,
+                        selectedColor: scheme.primaryContainer,
+                        onSelected: (_) => setState(() => _activeSheet = i),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            // Table
+            Expanded(
+              child: sheet.rows.isEmpty
+                  ? const Center(child: Text('Empty sheet'))
+                  : _buildTable(sheet, scheme),
+            ),
             _ToolsBar(
               tools: [
                 _ToolItem(
                   icon: Icons.picture_as_pdf_outlined,
                   label: 'Convert',
-                  onTap: () => _convertToPdf(content),
+                  onTap: _convertToPdf,
+                ),
+                _ToolItem(
+                  icon: Icons.share_outlined,
+                  label: 'Share',
+                  onTap: () async {
+                    final pathFile = File(widget.file.path);
+                    if (pathFile.existsSync()) {
+                      await SharePlus.instance.share(
+                        ShareParams(
+                          files: [XFile(pathFile.path)],
+                          subject: widget.file.name,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTable(ExcelSheet sheet, ColorScheme scheme) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Table(
+          border: TableBorder.all(
+            color: scheme.outlineVariant.withValues(alpha: 0.5),
+            width: 0.5,
+          ),
+          defaultColumnWidth: const IntrinsicColumnWidth(),
+          children: [
+            for (var r = 0; r < sheet.rows.length; r++)
+              TableRow(
+                decoration: r == 0
+                    ? BoxDecoration(color: scheme.primaryContainer.withValues(alpha: 0.3))
+                    : null,
+                children: [
+                  for (var c = 0; c < sheet.rows[r].length; c++)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        sheet.rows[r][c],
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight:
+                              r == 0 ? FontWeight.w600 : FontWeight.w400,
+                          color: r == 0
+                              ? scheme.onPrimaryContainer
+                              : scheme.onSurface,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PPTX Viewer – slide-by-slide view
+// ---------------------------------------------------------------------------
+
+class _PptxViewer extends StatefulWidget {
+  const _PptxViewer({required this.file});
+
+  final RecentFile file;
+
+  @override
+  State<_PptxViewer> createState() => _PptxViewerState();
+}
+
+class _PptxViewerState extends State<_PptxViewer> {
+  late final Future<_PptxResult> _load = _loadSlides();
+  final PageController _controller = PageController();
+  int _current = 0;
+
+  Future<_PptxResult> _loadSlides() async {
+    try {
+      final text = await extractOfficeText(widget.file.path);
+      final bytes = await File(widget.file.path).readAsBytes();
+      final slides = extractPptxSlides(bytes);
+      if (text.trim().isEmpty && slides.every((s) => s.content.trim().isEmpty)) {
+        return _PptxResult(slides: const []);
+      }
+      return _PptxResult(slides: slides);
+    } catch (e) {
+      return _PptxResult(error: e);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _convertToPdf() async {
+    final baseName = sanitizeFileName(
+      p.basenameWithoutExtension(widget.file.path),
+    );
+    final fileName = '${baseName}_converted.pdf';
+    try {
+      final result = await _load;
+      final slides = result.slides;
+      final buffer = StringBuffer();
+      for (final slide in slides) {
+        buffer.writeln('--- Slide ${slide.index} ---');
+        buffer.writeln(slide.content);
+        buffer.writeln();
+      }
+      final content = buffer.toString();
+      final bytes = await buildTextPdf(
+        title: p.basename(widget.file.path),
+        content: content,
+      );
+      final file = await saveOutput(bytes, fileName);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved to ${file.path}')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save PDF: $error')));
+    }
+  }
+
+  Widget _pptxErrorView({required String title, required String subtitle}) {
+    return Column(
+      children: [
+        Expanded(
+          child: _CenterMessage(
+            icon: Icons.slideshow_outlined,
+            title: title,
+            subtitle: subtitle,
+          ),
+        ),
+        _ToolsBar(
+          tools: [
+            _ToolItem(
+              icon: Icons.picture_as_pdf_outlined,
+              label: 'Convert',
+              onTap: _convertToPdf,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return FutureBuilder<_PptxResult>(
+      future: _load,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final result = snapshot.data ?? _PptxResult(error: 'Unknown error');
+        if (result.error != null) {
+          return _pptxErrorView(
+            title: 'Could not open this file',
+            subtitle:
+                'This is not a readable PowerPoint document. '
+                'Use Share to open it in another app.',
+          );
+        }
+        final slides = result.slides;
+        final hasContent =
+            slides.any((s) => s.content.trim().isNotEmpty);
+        if (slides.isEmpty || !hasContent) {
+          return _pptxErrorView(
+            title: 'Empty presentation',
+            subtitle: 'No readable text found in this file. '
+                'Use Share to open it in another app.',
+          );
+        }
+        final total = slides.length;
+        final current = _current.clamp(0, total - 1);
+        return Column(
+          children: [
+            Expanded(
+              child: PageView.builder(
+                controller: _controller,
+                itemCount: total,
+                onPageChanged: (i) => setState(() => _current = i),
+                itemBuilder: (context, index) {
+                  final slide = slides[index];
+                  return Container(
+                    margin: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: scheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: scheme.outlineVariant.withValues(alpha: 0.4),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: scheme.primaryContainer,
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(12),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.slideshow,
+                                size: 18,
+                                color: scheme.onPrimaryContainer,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Slide ${slide.index}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: scheme.onPrimaryContainer,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: slide.content.trim().isEmpty
+                                ? Center(
+                                    child: Text(
+                                      '(Empty slide)',
+                                      style: TextStyle(
+                                        color: scheme.onSurfaceVariant,
+                                        fontStyle: FontStyle.italic,
+                                      ),
+                                    ),
+                                  )
+                                : SelectionArea(
+                                    child: SingleChildScrollView(
+                                      child: Text(
+                                        slide.content,
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          height: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                'Slide ${current + 1} of $total',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            _ToolsBar(
+              tools: [
+                _ToolItem(
+                  icon: Icons.picture_as_pdf_outlined,
+                  label: 'Convert',
+                  onTap: _convertToPdf,
+                ),
+                _ToolItem(
+                  icon: Icons.share_outlined,
+                  label: 'Share',
+                  onTap: () async {
+                    final pathFile = File(widget.file.path);
+                    if (pathFile.existsSync()) {
+                      await SharePlus.instance.share(
+                        ShareParams(
+                          files: [XFile(pathFile.path)],
+                          subject: widget.file.name,
+                        ),
+                      );
+                    }
+                  },
                 ),
               ],
             ),
@@ -744,6 +1135,13 @@ class _ToolItem {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+}
+
+class _PptxResult {
+  const _PptxResult({this.slides = const [], this.error});
+
+  final List<PptxSlide> slides;
+  final Object? error;
 }
 
 class _UnsupportedViewer extends StatelessWidget {

@@ -32,9 +32,34 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
         final blocks = snapshot.data!.blocks;
         return SelectionArea(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
             children: [
-              for (final block in blocks) ..._buildBlocks(block, scheme),
+              // Page-like paper card
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? scheme.surfaceContainerHigh
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 28,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final block in blocks) ..._buildBlocks(block, scheme),
+                  ],
+                ),
+              ),
             ],
           ),
         );
@@ -47,8 +72,12 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
       final p = block.paragraph;
       if (p.isPageBreak && p.spans.isEmpty) {
         return [
-          const Divider(height: 40),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          Divider(
+            height: 1,
+            color: scheme.outlineVariant.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 16),
         ];
       }
       return [
@@ -90,7 +119,7 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
                   final available = constraints.maxWidth;
                   final scale = w > available ? available / w : 1.0;
                   return ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                     child: SizedBox(
                       width: w * scale,
                       height: h * scale,
@@ -113,7 +142,7 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
                     maxHeight: 420,
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                     child: Image.memory(
                       picture.bytes,
                       fit: BoxFit.contain,
@@ -151,7 +180,7 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
           : FontWeight.w400,
       fontStyle: span.italic ? FontStyle.italic : FontStyle.normal,
       decoration: span.underline ? TextDecoration.underline : null,
-      height: 1.35,
+      height: 1.5,
       color: scheme.onSurface,
     );
   }
@@ -170,11 +199,11 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: Table(
           border: TableBorder.all(
-            color: scheme.outlineVariant.withValues(alpha: 0.7),
-            width: 1,
+            color: scheme.outlineVariant.withValues(alpha: 0.6),
+            width: 0.5,
           ),
           defaultColumnWidth: const FlexColumnWidth(),
           children: [
@@ -190,7 +219,7 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
                       child: DefaultTextStyle.merge(
                         style: TextStyle(
                           fontSize: 12.5,
-                          height: 1.35,
+                          height: 1.4,
                           fontWeight: row.isHeader
                               ? FontWeight.w700
                               : FontWeight.w400,

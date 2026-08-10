@@ -12,8 +12,12 @@ Future<String> extractOfficeText(String path) async {
   final lower = path.toLowerCase();
   try {
     if (lower.endsWith('.docx')) return _docxText(bytes);
-    if (lower.endsWith('.xlsx')) return _xlsxText(bytes);
-    if (lower.endsWith('.pptx')) return _pptxText(bytes);
+    if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) {
+      return _xlsxText(bytes);
+    }
+    if (lower.endsWith('.pptx') || lower.endsWith('.ppt')) {
+      return _pptxText(bytes);
+    }
   } on FormatException {
     rethrow;
   } catch (_) {
@@ -106,9 +110,26 @@ String _pptxText(Uint8List bytes) {
   return _normalizeWhitespace(buffer.toString());
 }
 
-String _xlsxText(Uint8List bytes) {
+/// Parses a cell reference like "B15" into (column, row) where column is 0-based.
+(int, int)? _parseCellRef(String ref) {
+  final match = RegExp(r'^([A-Z]+)(\d+)$').firstMatch(ref);
+  if (match == null) return null;
+  final colStr = match.group(1)!;
+  var col = 0;
+  for (var i = 0; i < colStr.length; i++) {
+    col = col * 26 + (colStr.codeUnitAt(i) - 64);
+  }
+  col -= 1;
+  final row = int.parse(match.group(2)!) - 1;
+  return (col, row);
+}
+
+/// Extracts Excel sheets as structured data: list of sheets, each with
+/// a name and a 2D grid of cell values.
+List<ExcelSheet> extractExcelSheets(Uint8List bytes) {
   final archive = _openZip(bytes);
 
+  // Read shared strings
   final shared = <String>[];
   final sst = _readEntry(archive, 'xl/sharedStrings.xml');
   if (sst != null) {
@@ -121,7 +142,20 @@ String _xlsxText(Uint8List bytes) {
     }
   }
 
-  final sheetNames =
+  // Read workbook for sheet names
+  final sheetNames = <String>[];
+  final wb = _readEntry(archive, 'xl/workbook.xml');
+  if (wb != null) {
+    final wbXml = utf8.decode(wb);
+    for (final m in RegExp(
+      r'<sheet[^>]+name="([^"]+)"',
+    ).allMatches(wbXml)) {
+      sheetNames.add(m.group(1)!);
+    }
+  }
+
+  // Find sheet XML files
+  final sheetFiles =
       archive.files
           .map((e) => e.name)
           .where(
@@ -129,47 +163,142 @@ String _xlsxText(Uint8List bytes) {
           )
           .toList()
         ..sort();
-  if (sheetNames.isEmpty) {
-    throw const FormatException('Corrupt or unreadable Excel file');
-  }
-  final buffer = StringBuffer();
-  for (final name in sheetNames) {
-    final xml = _readEntry(archive, name);
+
+  final sheets = <ExcelSheet>[];
+  for (var i = 0; i < sheetFiles.length; i++) {
+    final xml = _readEntry(archive, sheetFiles[i]);
     if (xml == null) continue;
     final sheetXml = utf8.decode(xml);
-    final rowTexts = <String>[];
-    for (final row in RegExp(
-      r'<row[ >](.*?)</row>',
+    final name = i < sheetNames.length ? sheetNames[i] : 'Sheet ${i + 1}';
+
+    // Parse cells
+    int maxCol = 0;
+    int maxRow = 0;
+    final cells = <String, String>{};
+
+    for (final cell in RegExp(
+      r'<c ([^>]*?)>(.*?)</c>',
       dotAll: true,
     ).allMatches(sheetXml)) {
-      final cells = <String>[];
-      for (final cell in RegExp(
-        r'<c(.*?)>(.*?)</c>',
+      final attrs = cell.group(1) ?? '';
+      final inner = cell.group(2) ?? '';
+
+      // Extract r="A1" attribute
+      final refMatch = RegExp(r'r="([A-Z]+\d+)"').firstMatch(attrs);
+      if (refMatch == null) continue;
+      final ref = refMatch.group(1)!;
+      final parsed = _parseCellRef(ref);
+      if (parsed == null) continue;
+      final col = parsed.$1;
+      final row = parsed.$2;
+
+      final inline = RegExp(
+        r'<t[^>]*>(.*?)</t>',
         dotAll: true,
-      ).allMatches(row.group(1)!)) {
-        final attributes = cell.group(1) ?? '';
-        final inner = cell.group(2) ?? '';
-        final inline = RegExp(
-          r'<t[^>]*>(.*?)</t>',
-          dotAll: true,
-        ).firstMatch(inner)?.group(1);
-        final value = RegExp(
-          r'<v>(.*?)</v>',
-          dotAll: true,
-        ).firstMatch(inner)?.group(1);
-        var text = inline ?? value ?? '';
-        if (text.isEmpty) continue;
-        if (attributes.contains('t="s"')) {
-          final index = int.tryParse(text);
-          text = (index != null && index >= 0 && index < shared.length)
-              ? shared[index]
-              : '';
-        }
-        if (text.isNotEmpty) cells.add(_decodeEntities(text).trim());
+      ).firstMatch(inner)?.group(1);
+      final value = RegExp(
+        r'<v>(.*?)</v>',
+        dotAll: true,
+      ).firstMatch(inner)?.group(1);
+
+      var text = inline ?? value ?? '';
+      if (text.isEmpty) continue;
+
+      // Resolve shared strings
+      if (attrs.contains('t="s"')) {
+        final index = int.tryParse(text);
+        text = (index != null && index >= 0 && index < shared.length)
+            ? shared[index]
+            : '';
       }
-      if (cells.isNotEmpty) rowTexts.add(cells.join('\t'));
+      // Handle boolean values
+      if (attrs.contains('t="b"')) {
+        text = text == '1' ? 'TRUE' : 'FALSE';
+      }
+
+      if (text.isNotEmpty) {
+        cells['$col,$row'] = _decodeEntities(text).trim();
+        if (col > maxCol) maxCol = col;
+        if (row > maxRow) maxRow = row;
+      }
     }
-    if (rowTexts.isNotEmpty) buffer.writeln(rowTexts.join('\n'));
+
+    // Build grid
+    final grid = <List<String>>[];
+    for (var r = 0; r <= maxRow; r++) {
+      final rowData = <String>[];
+      for (var c = 0; c <= maxCol; c++) {
+        rowData.add(cells['$c,$r'] ?? '');
+      }
+      grid.add(rowData);
+    }
+
+    sheets.add(ExcelSheet(name: name, rows: grid));
+  }
+
+  if (sheets.isEmpty) {
+    // Fallback to text extraction
+    final text = _xlsxText(bytes);
+    return [ExcelSheet(name: 'Sheet 1', rows: [
+      [text]
+    ])];
+  }
+
+  return sheets;
+}
+
+String _xlsxText(Uint8List bytes) {
+  final sheets = extractExcelSheets(bytes);
+  final buffer = StringBuffer();
+  for (final sheet in sheets) {
+    buffer.writeln('--- ${sheet.name} ---');
+    for (final row in sheet.rows) {
+      buffer.writeln(row.join('\t'));
+    }
+    buffer.writeln();
   }
   return _normalizeWhitespace(buffer.toString());
+}
+
+/// Extracts PowerPoint slides as structured data with index and text content.
+List<PptxSlide> extractPptxSlides(Uint8List bytes) {
+  final archive = _openZip(bytes);
+  final slideNames =
+      archive.files
+          .map((e) => e.name)
+          .where((name) => RegExp(r'^ppt/slides/slide\d+\.xml$').hasMatch(name))
+          .toList()
+        ..sort((a, b) {
+          final na = int.parse(RegExp(r'(\d+)').firstMatch(a)!.group(1)!);
+          final nb = int.parse(RegExp(r'(\d+)').firstMatch(b)!.group(1)!);
+          return na.compareTo(nb);
+        });
+
+  final slides = <PptxSlide>[];
+  for (var i = 0; i < slideNames.length; i++) {
+    final xml = _readEntry(archive, slideNames[i]);
+    if (xml == null) continue;
+    final plain = _stripTags(utf8.decode(xml)).trim();
+    slides.add(PptxSlide(index: i + 1, content: plain));
+  }
+  return slides;
+}
+
+/// Structured Excel sheet data.
+class ExcelSheet {
+  const ExcelSheet({required this.name, required this.rows});
+
+  final String name;
+  final List<List<String>> rows;
+
+  int get rowCount => rows.length;
+  int get colCount => rows.isEmpty ? 0 : rows.first.length;
+}
+
+/// Structured PowerPoint slide data.
+class PptxSlide {
+  const PptxSlide({required this.index, required this.content});
+
+  final int index;
+  final String content;
 }
