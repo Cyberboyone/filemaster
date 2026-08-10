@@ -76,11 +76,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     if (manage.isGranted) return true;
     final storage = await Permission.storage.status;
     if (storage.isGranted) return true;
-    const media = [
-      Permission.photos,
-      Permission.videos,
-      Permission.audio,
-    ];
+    const media = [Permission.photos, Permission.videos, Permission.audio];
     final statuses = await media.request();
     for (final status in statuses.values) {
       if (status.isGranted || status.isLimited) return true;
@@ -207,13 +203,14 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
       );
       await ref.read(recentsControllerProvider.notifier).recordOpen(recent);
       if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Could not open file: $error')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not open file: $error')));
     }
   }
 
@@ -241,7 +238,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
               title: const Text('Share'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+                SharePlus.instance.share(
+                  ShareParams(files: [XFile(file.path)]),
+                );
               },
             ),
             ListTile(
@@ -303,8 +302,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
       await _scan();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Could not rename: $error')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not rename: $error')));
     }
   }
 
@@ -334,8 +334,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
       await _scan();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Could not delete: $error')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not delete: $error')));
     }
   }
 
@@ -368,10 +369,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
         action: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextButton(
-              onPressed: () => _scan(),
-              child: const Text('Retry'),
-            ),
+            TextButton(onPressed: () => _scan(), child: const Text('Retry')),
             TextButton(
               onPressed: _browseViaPicker,
               child: const Text('Choose a folder instead'),
@@ -387,7 +385,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     return MessageView(
       icon: Icons.folder_special_outlined,
       title: 'Storage access needed',
-      subtitle: 'Allow "All files access" to see your documents, or '
+      subtitle:
+          'Allow "All files access" to see your documents, or '
           '"Files and media" access to see photos, videos and audio.',
       action: Column(
         mainAxisSize: MainAxisSize.min,
@@ -412,9 +411,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     if (dir == null) return const Center(child: CircularProgressIndicator());
     final scheme = Theme.of(context).colorScheme;
     final grouped = _grouped();
-    final sections = grouped.entries
-        .where((e) => e.value.isNotEmpty)
-        .toList();
+    final sections = grouped.entries.where((e) => e.value.isNotEmpty).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,9 +426,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
                   'in ${dir.path}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               IconButton(
@@ -452,7 +449,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
               ? MessageView(
                   icon: Icons.filter_alt_off_outlined,
                   title: 'No supported files here',
-                  subtitle: 'Only files this app can open are shown: PDF, '
+                  subtitle:
+                      'Only files this app can open are shown: PDF, '
                       'Word, PowerPoint, Excel and text.\n'
                       'Tap the folder icon to scan another folder.',
                 )

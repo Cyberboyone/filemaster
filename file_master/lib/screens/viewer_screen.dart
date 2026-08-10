@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
@@ -13,7 +14,7 @@ import '../utils/doc_format.dart';
 import '../utils/office_utils.dart';
 import '../utils/output_utils.dart';
 import '../utils/pdf_builder.dart';
-import '../utils/text_pager.dart';
+import '../utils/pptx_renderer.dart';
 import '../widgets/docx_document_view.dart';
 
 /// True for Office formats we can read offline (the modern XML based ones).
@@ -59,7 +60,7 @@ class ViewerScreen extends StatelessWidget {
       );
     } catch (error) {
       if (!context.mounted) return;
-ScaffoldMessenger.of(
+      ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Could not save PDF: $error')));
     }
@@ -95,36 +96,39 @@ ScaffoldMessenger.of(
               DocFormat.pdf => _PdfViewer(path: file.path),
               DocFormat.image => _ImageViewer(path: file.path),
               DocFormat.text => _TextViewer(path: file.path),
-              DocFormat.word => pathFile.path.toLowerCase().endsWith('.docx')
-                  ? _DocxViewer(file: file)
-                  : _UnsupportedViewer(
-                      file: file,
-                      icon: file.format.icon,
-                      message:
-                          'Offline preview for older Word files (.doc) is '
-                          'not available. Use Share to open it in another '
-                          'app, or Convert to turn it into a PDF.',
-                    ),
-              DocFormat.excel => _isConvertibleOffice(pathFile.path)
-                  ? _ExcelViewer(file: file)
-                  : _UnsupportedViewer(
-                      file: file,
-                      icon: file.format.icon,
-                      message:
-                          'Offline preview for ${file.format.label} files is '
-                          'not available. Use Share to open it in another '
-                          'app.',
-                    ),
-              DocFormat.powerpoint => _isConvertibleOffice(pathFile.path)
-                  ? _PptxViewer(file: file)
-                  : _UnsupportedViewer(
-                      file: file,
-                      icon: file.format.icon,
-                      message:
-                          'Offline preview for ${file.format.label} files is '
-                          'not available. Use Share to open it in another '
-                          'app.',
-                    ),
+              DocFormat.word =>
+                pathFile.path.toLowerCase().endsWith('.docx')
+                    ? _DocxViewer(file: file)
+                    : _UnsupportedViewer(
+                        file: file,
+                        icon: file.format.icon,
+                        message:
+                            'Offline preview for older Word files (.doc) is '
+                            'not available. Use Share to open it in another '
+                            'app, or Convert to turn it into a PDF.',
+                      ),
+              DocFormat.excel =>
+                _isConvertibleOffice(pathFile.path)
+                    ? _ExcelViewer(file: file)
+                    : _UnsupportedViewer(
+                        file: file,
+                        icon: file.format.icon,
+                        message:
+                            'Offline preview for ${file.format.label} files is '
+                            'not available. Use Share to open it in another '
+                            'app.',
+                      ),
+              DocFormat.powerpoint =>
+                _isConvertibleOffice(pathFile.path)
+                    ? _PptxViewer(file: file)
+                    : _UnsupportedViewer(
+                        file: file,
+                        icon: file.format.icon,
+                        message:
+                            'Offline preview for ${file.format.label} files is '
+                            'not available. Use Share to open it in another '
+                            'app.',
+                      ),
               _ => _UnsupportedViewer(
                 file: file,
                 icon: file.format.icon,
@@ -290,9 +294,7 @@ class _TextViewerState extends State<_TextViewer> {
                           child: Text(
                             'Showing the first $_maxChars characters '
                             '(${result.totalBytes ~/ 1024} KB total).',
-                            style: TextStyle(
-                              color: scheme.onTertiaryContainer,
-                            ),
+                            style: TextStyle(color: scheme.onTertiaryContainer),
                           ),
                         ),
                       Text(
@@ -328,19 +330,15 @@ class _TextViewerState extends State<_TextViewer> {
     if (!mounted) return;
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => _TextEditorPage(
-          filePath: widget.path,
-          initialContent: content,
-        ),
+        builder: (_) =>
+            _TextEditorPage(filePath: widget.path, initialContent: content),
       ),
     );
     if (saved == true) _reload();
   }
 
   Future<void> _convertToPdf(String content) async {
-    final baseName = sanitizeFileName(
-      p.basenameWithoutExtension(widget.path),
-    );
+    final baseName = sanitizeFileName(p.basenameWithoutExtension(widget.path));
     final fileName = '${baseName}_converted.pdf';
     try {
       final bytes = await buildTextPdf(
@@ -349,9 +347,9 @@ class _TextViewerState extends State<_TextViewer> {
       );
       final file = await saveOutput(bytes, fileName);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved to ${file.path}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -362,10 +360,7 @@ class _TextViewerState extends State<_TextViewer> {
 }
 
 class _TextEditorPage extends StatefulWidget {
-  const _TextEditorPage({
-    required this.filePath,
-    required this.initialContent,
-  });
+  const _TextEditorPage({required this.filePath, required this.initialContent});
 
   final String filePath;
   final String initialContent;
@@ -389,10 +384,7 @@ class _TextEditorPageState extends State<_TextEditorPage> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await File(widget.filePath).writeAsString(
-        _controller.text,
-        flush: true,
-      );
+      await File(widget.filePath).writeAsString(_controller.text, flush: true);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (error) {
@@ -477,7 +469,9 @@ class _DocxViewerState extends State<_DocxViewer> {
 
   Future<String> _extract() async {
     final text = await extractOfficeText(widget.file.path);
-    return text.trim().isEmpty ? '(No readable text found in this file.)' : text;
+    return text.trim().isEmpty
+        ? '(No readable text found in this file.)'
+        : text;
   }
 
   Future<void> _convertToPdf() async {
@@ -493,9 +487,9 @@ class _DocxViewerState extends State<_DocxViewer> {
       );
       final file = await saveOutput(bytes, fileName);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved to ${file.path}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -567,9 +561,9 @@ class _ExcelViewerState extends State<_ExcelViewer> {
       );
       final file = await saveOutput(bytes, fileName);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved to ${file.path}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -593,7 +587,8 @@ class _ExcelViewerState extends State<_ExcelViewer> {
             title: 'Could not open this file',
             subtitle:
                 '${widget.file.name} is not a readable Excel document. '
-                'Use Share to open it in another app.',
+                'Older .xls files are not supported — use Share to open it '
+                'in another app.',
           );
         }
         final sheets = snapshot.data!;
@@ -681,52 +676,80 @@ class _ExcelViewerState extends State<_ExcelViewer> {
   }
 
   Widget _buildTable(ExcelSheet sheet, ColorScheme scheme) {
+    const maxRows = 500;
+    const maxCols = 40;
+    final rows = sheet.rows.take(maxRows).toList();
     return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: Table(
-          border: TableBorder.all(
-            color: scheme.outlineVariant.withValues(alpha: 0.5),
-            width: 0.5,
-          ),
-          defaultColumnWidth: const IntrinsicColumnWidth(),
-          children: [
-            for (var r = 0; r < sheet.rows.length; r++)
-              TableRow(
-                decoration: r == 0
-                    ? BoxDecoration(color: scheme.primaryContainer.withValues(alpha: 0.3))
-                    : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: Table(
+                border: TableBorder.all(
+                  color: scheme.outlineVariant.withValues(alpha: 0.5),
+                  width: 0.5,
+                ),
+                defaultColumnWidth: const IntrinsicColumnWidth(),
                 children: [
-                  for (var c = 0; c < sheet.rows[r].length; c++)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      child: Text(
-                        sheet.rows[r][c],
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight:
-                              r == 0 ? FontWeight.w600 : FontWeight.w400,
-                          color: r == 0
-                              ? scheme.onPrimaryContainer
-                              : scheme.onSurface,
-                        ),
-                      ),
+                  for (var r = 0; r < rows.length; r++)
+                    TableRow(
+                      decoration: r == 0
+                          ? BoxDecoration(
+                              color: scheme.primaryContainer.withValues(
+                                alpha: 0.3,
+                              ),
+                            )
+                          : null,
+                      children: [
+                        for (var c = 0; c < rows[r].length && c < maxCols; c++)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            child: Text(
+                              rows[r][c],
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: r == 0
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: r == 0
+                                    ? scheme.onPrimaryContainer
+                                    : scheme.onSurface,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                 ],
               ),
-          ],
-        ),
+            ),
+          ),
+          if (sheet.rows.length > maxRows ||
+              rows.any((r) => r.length > maxCols))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Text(
+                'Showing the first $maxRows rows of '
+                '${sheet.rows.length} (Convert to PDF keeps everything).',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// PPTX Viewer – slide-by-slide view
+// PPTX Viewer – renders the actual slides (layout, shapes, colors, images)
 // ---------------------------------------------------------------------------
 
 class _PptxViewer extends StatefulWidget {
@@ -739,21 +762,34 @@ class _PptxViewer extends StatefulWidget {
 }
 
 class _PptxViewerState extends State<_PptxViewer> {
-  late final Future<_PptxResult> _load = _loadSlides();
+  late final Future<_PptxRenderResult> _load = _loadSlides();
   final PageController _controller = PageController();
   int _current = 0;
 
-  Future<_PptxResult> _loadSlides() async {
+  Future<_PptxRenderResult> _loadSlides() async {
     try {
-      final text = await extractOfficeText(widget.file.path);
       final bytes = await File(widget.file.path).readAsBytes();
-      final slides = extractPptxSlides(bytes);
-      if (text.trim().isEmpty && slides.every((s) => s.content.trim().isEmpty)) {
-        return _PptxResult(slides: const []);
+      final slides = parsePptxRender(bytes);
+      final decoded = <int, Map<int, ui.Image>>{};
+      for (var s = 0; s < slides.length; s++) {
+        final slide = slides[s];
+        final images = <int, ui.Image>{};
+        final bkg = slide.backgroundImageBytes;
+        final codec = bkg == null ? null : await ui.instantiateImageCodec(bkg);
+        if (codec != null) {
+          images[-1] = (await codec.getNextFrame()).image;
+        }
+        for (var i = 0; i < slide.shapes.length; i++) {
+          final imageBytes = slide.shapes[i].imageBytes;
+          if (imageBytes == null) continue;
+          final shapeCodec = await ui.instantiateImageCodec(imageBytes);
+          images[i] = (await shapeCodec.getNextFrame()).image;
+        }
+        if (images.isNotEmpty) decoded[s] = images;
       }
-      return _PptxResult(slides: slides);
+      return _PptxRenderResult(slides: slides, decodedImages: decoded);
     } catch (e) {
-      return _PptxResult(error: e);
+      return _PptxRenderResult(error: e);
     }
   }
 
@@ -774,7 +810,11 @@ class _PptxViewerState extends State<_PptxViewer> {
       final buffer = StringBuffer();
       for (final slide in slides) {
         buffer.writeln('--- Slide ${slide.index} ---');
-        buffer.writeln(slide.content);
+        for (final shape in slide.shapes) {
+          for (final line in shape.lines) {
+            buffer.writeln(line.text);
+          }
+        }
         buffer.writeln();
       }
       final content = buffer.toString();
@@ -784,9 +824,9 @@ class _PptxViewerState extends State<_PptxViewer> {
       );
       final file = await saveOutput(bytes, fileName);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved to ${file.path}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -821,28 +861,29 @@ class _PptxViewerState extends State<_PptxViewer> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return FutureBuilder<_PptxResult>(
+    return FutureBuilder<_PptxRenderResult>(
       future: _load,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
         }
-        final result = snapshot.data ?? _PptxResult(error: 'Unknown error');
+        final result =
+            snapshot.data ?? _PptxRenderResult(error: 'Unknown error');
         if (result.error != null) {
           return _pptxErrorView(
             title: 'Could not open this file',
             subtitle:
-                'This is not a readable PowerPoint document. '
-                'Use Share to open it in another app.',
+                'This is not a readable PowerPoint document, or it '
+                'uses an older .ppt format. Use Share to open it in '
+                'another app.',
           );
         }
         final slides = result.slides;
-        final hasContent =
-            slides.any((s) => s.content.trim().isNotEmpty);
-        if (slides.isEmpty || !hasContent) {
+        if (slides.isEmpty || slides.every((s) => !s.hasContent)) {
           return _pptxErrorView(
             title: 'Empty presentation',
-            subtitle: 'No readable text found in this file. '
+            subtitle:
+                'No readable text found in this file. '
                 'Use Share to open it in another app.',
           );
         }
@@ -857,80 +898,16 @@ class _PptxViewerState extends State<_PptxViewer> {
                 onPageChanged: (i) => setState(() => _current = i),
                 itemBuilder: (context, index) {
                   final slide = slides[index];
-                  return Container(
-                    margin: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: scheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: scheme.outlineVariant.withValues(alpha: 0.4),
+                  return InteractiveViewer(
+                    maxScale: 4,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: PptxSlideView(
+                        slide: slide,
+                        images:
+                            result.decodedImages[index] ??
+                            const <int, ui.Image>{},
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: scheme.primaryContainer,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(12),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.slideshow,
-                                size: 18,
-                                color: scheme.onPrimaryContainer,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Slide ${slide.index}',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: scheme.onPrimaryContainer,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: slide.content.trim().isEmpty
-                                ? Center(
-                                    child: Text(
-                                      '(Empty slide)',
-                                      style: TextStyle(
-                                        color: scheme.onSurfaceVariant,
-                                        fontStyle: FontStyle.italic,
-                                      ),
-                                    ),
-                                  )
-                                : SelectionArea(
-                                    child: SingleChildScrollView(
-                                      child: Text(
-                                        slide.content,
-                                        style: const TextStyle(
-                                          fontSize: 15,
-                                          height: 1.5,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                      ],
                     ),
                   );
                 },
@@ -978,71 +955,16 @@ class _PptxViewerState extends State<_PptxViewer> {
   }
 }
 
-/// Shows long text split into numbered, swipeable pages.
-class _PagedTextViewer extends StatefulWidget {
-  const _PagedTextViewer({required this.content});
+class _PptxRenderResult {
+  const _PptxRenderResult({
+    this.slides = const [],
+    this.decodedImages = const {},
+    this.error,
+  });
 
-  final String content;
-
-  @override
-  State<_PagedTextViewer> createState() => _PagedTextViewerState();
-}
-
-class _PagedTextViewerState extends State<_PagedTextViewer> {
-  static const _style = TextStyle(fontSize: 15, height: 1.4);
-
-  final PageController _controller = PageController();
-  int _page = 0;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final pages = paginateText(
-          text: widget.content,
-          style: _style,
-          width: constraints.maxWidth - 40,
-          height: constraints.maxHeight - 40,
-        );
-        final total = pages.length;
-        final current = _page.clamp(0, total - 1);
-        return Column(
-          children: [
-            Expanded(
-              child: SelectionArea(
-                child: PageView.builder(
-                  controller: _controller,
-                  itemCount: total,
-                  onPageChanged: (index) => setState(() => _page = index),
-                  itemBuilder: (context, index) => SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-                    child: Text(pages[index], style: _style),
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'Page ${current + 1} of $total',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  final List<PptxRenderSlide> slides;
+  final Map<int, Map<int, ui.Image>> decodedImages;
+  final Object? error;
 }
 
 /// Bottom action bar shown inside a viewer with tools for the current file
@@ -1135,13 +1057,6 @@ class _ToolItem {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-}
-
-class _PptxResult {
-  const _PptxResult({this.slides = const [], this.error});
-
-  final List<PptxSlide> slides;
-  final Object? error;
 }
 
 class _UnsupportedViewer extends StatelessWidget {

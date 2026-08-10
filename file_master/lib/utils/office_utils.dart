@@ -12,7 +12,9 @@ Future<String> extractOfficeText(String path) async {
   final lower = path.toLowerCase();
   try {
     if (lower.endsWith('.docx')) return _docxText(bytes);
-    if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) {
+    if (lower.endsWith('.xlsx') ||
+        lower.endsWith('.xls') ||
+        lower.endsWith('.csv')) {
       return _xlsxText(bytes);
     }
     if (lower.endsWith('.pptx') || lower.endsWith('.ppt')) {
@@ -147,9 +149,7 @@ List<ExcelSheet> extractExcelSheets(Uint8List bytes) {
   final wb = _readEntry(archive, 'xl/workbook.xml');
   if (wb != null) {
     final wbXml = utf8.decode(wb);
-    for (final m in RegExp(
-      r'<sheet[^>]+name="([^"]+)"',
-    ).allMatches(wbXml)) {
+    for (final m in RegExp(r'<sheet[^>]+name="([^"]+)"').allMatches(wbXml)) {
       sheetNames.add(m.group(1)!);
     }
   }
@@ -239,9 +239,14 @@ List<ExcelSheet> extractExcelSheets(Uint8List bytes) {
   if (sheets.isEmpty) {
     // Fallback to text extraction
     final text = _xlsxText(bytes);
-    return [ExcelSheet(name: 'Sheet 1', rows: [
-      [text]
-    ])];
+    return [
+      ExcelSheet(
+        name: 'Sheet 1',
+        rows: [
+          [text],
+        ],
+      ),
+    ];
   }
 
   return sheets;

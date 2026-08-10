@@ -91,10 +91,7 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
             TextSpan(
               children: [
                 for (final span in p.spans)
-                  TextSpan(
-                    text: span.text,
-                    style: _spanStyle(span, p, scheme),
-                  ),
+                  TextSpan(text: span.text, style: _spanStyle(span, p, scheme)),
               ],
             ),
             textAlign: _align(p.align),
@@ -129,9 +126,9 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
                         gaplessPlayback: true,
                         errorBuilder: (context, error, stackTrace) =>
                             const SizedBox(
-                          height: 64,
-                          child: Center(child: Icon(Icons.image_outlined)),
-                        ),
+                              height: 64,
+                              child: Center(child: Icon(Icons.image_outlined)),
+                            ),
                       ),
                     ),
                   );
@@ -149,9 +146,9 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
                       gaplessPlayback: true,
                       errorBuilder: (context, error, stackTrace) =>
                           const SizedBox(
-                        height: 64,
-                        child: Center(child: Icon(Icons.image_outlined)),
-                      ),
+                            height: 64,
+                            child: Center(child: Icon(Icons.image_outlined)),
+                          ),
                     ),
                   ),
                 );
@@ -170,8 +167,14 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
     ColorScheme scheme,
   ) {
     final headingScale = paragraph.isHeading
-        ? [1.9, 1.6, 1.35, 1.2, 1.1, 1.05]
-            .elementAt(paragraph.headingLevel.clamp(1, 6) - 1)
+        ? [
+            1.9,
+            1.6,
+            1.35,
+            1.2,
+            1.1,
+            1.05,
+          ].elementAt(paragraph.headingLevel.clamp(1, 6) - 1)
         : 1.0;
     return TextStyle(
       fontSize: span.sizePt * (96 / 72) * headingScale,

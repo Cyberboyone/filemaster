@@ -91,7 +91,12 @@ class DocxDrawing {
 }
 
 class DocxPicture {
-  const DocxPicture({required this.bytes, this.mime, this.widthPx, this.heightPx});
+  const DocxPicture({
+    required this.bytes,
+    this.mime,
+    this.widthPx,
+    this.heightPx,
+  });
 
   final Uint8List bytes;
   final String? mime;
@@ -144,8 +149,9 @@ ParsedDocx parseDocxBytes(Uint8List bytes) {
   }
   final relsBytes = _readEntry(archive, 'word/_rels/document.xml.rels');
   final document = XmlDocument.parse(utf8.decode(xmlBytes));
-  final rels =
-      relsBytes == null ? null : XmlDocument.parse(utf8.decode(relsBytes));
+  final rels = relsBytes == null
+      ? null
+      : XmlDocument.parse(utf8.decode(relsBytes));
 
   final body = _childByLocal(document.rootElement, 'body');
   if (body == null) {
@@ -255,7 +261,7 @@ DocxParagraph? _parseParagraph(XmlElement element) {
   for (final child in element.children) {
     if (child is! XmlElement) continue;
     final name = child.name.local;
-if (name == 'r') {
+    if (name == 'r') {
       final span = _parseRun(child, drawings);
       if (span != null) spans.add(span);
     } else if (name == 'hyperlink') {
@@ -321,8 +327,7 @@ DocxSpan? _parseRun(XmlElement run, List<DocxDrawing> drawings) {
         buffer.write('\n');
       }
     } else if (name == 'drawing') {
-      final blip = child
-          .descendants
+      final blip = child.descendants
           .whereType<XmlElement>()
           .where((e) => e.name.local == 'blip')
           .firstOrNull;
@@ -331,8 +336,7 @@ DocxSpan? _parseRun(XmlElement run, List<DocxDrawing> drawings) {
         if (embed != null) {
           var cxEmu = 0;
           var cyEmu = 0;
-          final extent = child
-              .descendants
+          final extent = child.descendants
               .whereType<XmlElement>()
               .where((e) => e.name.local == 'extent')
               .firstOrNull;
@@ -340,9 +344,7 @@ DocxSpan? _parseRun(XmlElement run, List<DocxDrawing> drawings) {
             cxEmu = int.tryParse(_attr(extent, 'cx') ?? '') ?? 0;
             cyEmu = int.tryParse(_attr(extent, 'cy') ?? '') ?? 0;
           }
-          drawings.add(
-            DocxDrawing(rid: embed, cxEmu: cxEmu, cyEmu: cyEmu),
-          );
+          drawings.add(DocxDrawing(rid: embed, cxEmu: cxEmu, cyEmu: cyEmu));
         }
       }
     }

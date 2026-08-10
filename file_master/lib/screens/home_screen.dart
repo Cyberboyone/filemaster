@@ -189,7 +189,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             height: 80,
             child: NavigationBar(
               selectedIndex: _tabIndex,
-              onDestinationSelected: (index) => setState(() => _tabIndex = index),
+              onDestinationSelected: (index) =>
+                  setState(() => _tabIndex = index),
               destinations: const [
                 NavigationDestination(
                   icon: Icon(Icons.history_outlined),

@@ -41,7 +41,9 @@ class RecentFileTile extends StatelessWidget {
             horizontal: 12,
             vertical: 4,
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           leading: _FormatIcon(format: file.format),
           title: Text(
             file.name,
@@ -53,10 +55,7 @@ class RecentFileTile extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2),
             child: Text(
               '${file.format.label}  •  ${_relativeTime(context, file.lastOpened)}',
-              style: TextStyle(
-                color: scheme.onSurfaceVariant,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
             ),
           ),
           trailing: _formatSize(context, file.sizeBytes),

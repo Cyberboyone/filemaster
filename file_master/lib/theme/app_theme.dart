@@ -11,25 +11,23 @@ abstract final class AppTheme {
 
   static ThemeData _build(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
-    final scheme = ColorScheme.fromSeed(
-      seedColor: seed,
-      brightness: brightness,
-    ).copyWith(
-      // Functional neutral backgrounds: cool paper light, near-black dark.
-      surface: isDark ? const Color(0xFF0B0E13) : const Color(0xFFF8FAFC),
-      surfaceContainerLow: isDark
-          ? const Color(0xFF11151C)
-          : const Color(0xFFF1F5F9),
-      surfaceContainer: isDark
-          ? const Color(0xFF161B24)
-          : const Color(0xFFE8EEF6),
-      surfaceContainerHigh: isDark
-          ? const Color(0xFF1D2430)
-          : const Color(0xFFDEE6F0),
-      surfaceContainerHighest: isDark
-          ? const Color(0xFF253041)
-          : const Color(0xFFD2DCE8),
-    );
+    final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: brightness)
+        .copyWith(
+          // Functional neutral backgrounds: cool paper light, near-black dark.
+          surface: isDark ? const Color(0xFF0B0E13) : const Color(0xFFF8FAFC),
+          surfaceContainerLow: isDark
+              ? const Color(0xFF11151C)
+              : const Color(0xFFF1F5F9),
+          surfaceContainer: isDark
+              ? const Color(0xFF161B24)
+              : const Color(0xFFE8EEF6),
+          surfaceContainerHigh: isDark
+              ? const Color(0xFF1D2430)
+              : const Color(0xFFDEE6F0),
+          surfaceContainerHighest: isDark
+              ? const Color(0xFF253041)
+              : const Color(0xFFD2DCE8),
+        );
 
     final base = ThemeData(colorScheme: scheme, brightness: brightness);
 
@@ -63,7 +61,9 @@ abstract final class AppTheme {
         color: scheme.surfaceContainerLow,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.45)),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.45),
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -94,10 +94,7 @@ abstract final class AppTheme {
             borderRadius: BorderRadius.circular(14),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          textStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -107,15 +104,14 @@ abstract final class AppTheme {
           ),
           side: BorderSide(color: scheme.outlineVariant),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          textStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
@@ -129,7 +125,9 @@ abstract final class AppTheme {
         iconTheme: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
-            color: selected ? scheme.onSecondaryContainer : scheme.onSurfaceVariant,
+            color: selected
+                ? scheme.onSecondaryContainer
+                : scheme.onSurfaceVariant,
           );
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
@@ -183,9 +181,7 @@ abstract final class AppTheme {
         ),
       ),
       listTileTheme: ListTileThemeData(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         iconColor: scheme.onSurfaceVariant,
       ),
       dividerTheme: DividerThemeData(

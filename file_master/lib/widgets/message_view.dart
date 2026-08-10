@@ -50,17 +50,11 @@ class MessageView extends StatelessWidget {
                 child: Text(
                   subtitle!,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: scheme.onSurfaceVariant,
-                    height: 1.4,
-                  ),
+                  style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
                 ),
               ),
             ],
-            if (action != null) ...[
-              const SizedBox(height: 16),
-              action!,
-            ],
+            if (action != null) ...[const SizedBox(height: 16), action!],
           ],
         ),
       ),

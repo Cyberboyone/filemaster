@@ -12,7 +12,11 @@ Future<void> _writeZip(String path, Map<String, String> entries) async {
   final archive = Archive();
   for (final entry in entries.entries) {
     archive.addFile(
-      ArchiveFile(entry.key, entry.value.codeUnits.length, entry.value.codeUnits),
+      ArchiveFile(
+        entry.key,
+        entry.value.codeUnits.length,
+        entry.value.codeUnits,
+      ),
     );
   }
   final bytes = ZipEncoder().encode(archive);
@@ -113,8 +117,9 @@ void main() {
     });
   });
 
-  testWidgets('office files without text show an informative message',
-      (tester) async {
+  testWidgets('office files without text show an informative message', (
+    tester,
+  ) async {
     await tester.runAsync(() async {
       final dir = await Directory.systemTemp.createTemp('fm_viewer_test');
       addTearDown(() => dir.delete(recursive: true));

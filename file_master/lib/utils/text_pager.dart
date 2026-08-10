@@ -48,7 +48,9 @@ List<String> paginateText({
     if (lineEnd == lineIndex) lineEnd = lineIndex + 1;
 
     final pageStart = lineStarts[lineIndex];
-    final pageEnd = lineEnd < metrics.length ? lineStarts[lineEnd] : text.length;
+    final pageEnd = lineEnd < metrics.length
+        ? lineStarts[lineEnd]
+        : text.length;
     if (pageEnd > pageStart) {
       pages.add(text.substring(pageStart, pageEnd));
     }
