@@ -77,24 +77,56 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
       return [_buildTable(block.table, scheme)];
     }
     if (block is DocxBlockPicture) {
+      final picture = block.picture;
       return [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 320),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.memory(
-                  block.picture.bytes,
-                  fit: BoxFit.contain,
-                  gaplessPlayback: true,
-                  errorBuilder: (context, error, stackTrace) => const SizedBox(
-                    height: 48,
-                    child: Center(child: Icon(Icons.image_outlined)),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                var w = picture.widthPx;
+                var h = picture.heightPx;
+                if (w != null && h != null) {
+                  final available = constraints.maxWidth;
+                  final scale = w > available ? available / w : 1.0;
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: SizedBox(
+                      width: w * scale,
+                      height: h * scale,
+                      child: Image.memory(
+                        picture.bytes,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox(
+                          height: 64,
+                          child: Center(child: Icon(Icons.image_outlined)),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 320,
+                    maxHeight: 420,
                   ),
-                ),
-              ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(
+                      picture.bytes,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const SizedBox(
+                        height: 64,
+                        child: Center(child: Icon(Icons.image_outlined)),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),

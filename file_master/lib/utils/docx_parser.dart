@@ -37,7 +37,7 @@ class DocxParagraph {
     this.isHeading = false,
     this.headingLevel = 0,
     this.isPageBreak = false,
-    this.drawingEmbedIds = const [],
+    this.drawings = const [],
   });
 
   final List<DocxSpan> spans;
@@ -49,8 +49,10 @@ class DocxParagraph {
   final int headingLevel;
   final bool isPageBreak;
 
-  /// `r:embed` ids of inline images (a:blip) inside this paragraph.
-  final List<String> drawingEmbedIds;
+  /// Inline images (`a:blip` `r:embed`) inside this paragraph, with their
+  /// declared size in drawing EMU (1/914400 inch), so rendering can match
+  /// the size Word shows instead of using raw pixel dimensions.
+  final List<DocxDrawing> drawings;
 
   String get plainText => spans.map((s) => s.text).join();
 }
@@ -76,11 +78,27 @@ class DocxTable {
   final List<DocxRow> rows;
 }
 
+class DocxDrawing {
+  const DocxDrawing({
+    required this.rid,
+    required this.cxEmu,
+    required this.cyEmu,
+  });
+
+  final String rid;
+  final int cxEmu;
+  final int cyEmu;
+}
+
 class DocxPicture {
-  const DocxPicture({required this.bytes, this.mime});
+  const DocxPicture({required this.bytes, this.mime, this.widthPx, this.heightPx});
 
   final Uint8List bytes;
   final String? mime;
+
+  /// Declared size from `wp:extent` in logical pixels (96 dpi), when known.
+  final double? widthPx;
+  final double? heightPx;
 }
 
 sealed class DocxBlock {
@@ -188,7 +206,7 @@ DocxParagraph? _parseParagraph(XmlElement element) {
   var isHeading = false;
   var headingLevel = 0;
   var isPageBreak = false;
-  final drawingEmbedIds = <String>[];
+  final drawings = <DocxDrawing>[];
 
   final props = _childByLocal(element, 'pPr');
   if (props != null) {
@@ -237,20 +255,20 @@ DocxParagraph? _parseParagraph(XmlElement element) {
   for (final child in element.children) {
     if (child is! XmlElement) continue;
     final name = child.name.local;
-    if (name == 'r') {
-      final span = _parseRun(child, drawingEmbedIds);
+if (name == 'r') {
+      final span = _parseRun(child, drawings);
       if (span != null) spans.add(span);
     } else if (name == 'hyperlink') {
-      for (final inner in child.children) {
-        if (inner is XmlElement && inner.name.local == 'r') {
-          final span = _parseRun(inner, drawingEmbedIds);
+      for (final inner in child.childElements) {
+        if (inner.name.local == 'r') {
+          final span = _parseRun(inner, drawings);
           if (span != null) spans.add(span);
         }
       }
     }
   }
 
-  if (spans.isEmpty && drawingEmbedIds.isEmpty && !isPageBreak) return null;
+  if (spans.isEmpty && drawings.isEmpty && !isPageBreak) return null;
   return DocxParagraph(
     spans: spans,
     align: align,
@@ -260,11 +278,11 @@ DocxParagraph? _parseParagraph(XmlElement element) {
     isHeading: isHeading,
     headingLevel: headingLevel,
     isPageBreak: isPageBreak,
-    drawingEmbedIds: drawingEmbedIds,
+    drawings: drawings,
   );
 }
 
-DocxSpan? _parseRun(XmlElement run, List<String> drawingEmbedIds) {
+DocxSpan? _parseRun(XmlElement run, List<DocxDrawing> drawings) {
   final buffer = StringBuffer();
   var bold = false;
   var italic = false;
@@ -310,7 +328,22 @@ DocxSpan? _parseRun(XmlElement run, List<String> drawingEmbedIds) {
           .firstOrNull;
       if (blip != null) {
         final embed = _attr(blip, 'r:embed');
-        if (embed != null) drawingEmbedIds.add(embed);
+        if (embed != null) {
+          var cxEmu = 0;
+          var cyEmu = 0;
+          final extent = child
+              .descendants
+              .whereType<XmlElement>()
+              .where((e) => e.name.local == 'extent')
+              .firstOrNull;
+          if (extent != null) {
+            cxEmu = int.tryParse(_attr(extent, 'cx') ?? '') ?? 0;
+            cyEmu = int.tryParse(_attr(extent, 'cy') ?? '') ?? 0;
+          }
+          drawings.add(
+            DocxDrawing(rid: embed, cxEmu: cxEmu, cyEmu: cyEmu),
+          );
+        }
       }
     }
   }
@@ -386,23 +419,26 @@ void _attachPictures(
       continue;
     }
     final paragraph = block.paragraph;
-    final rid = paragraph.drawingEmbedIds
-        .where(images.containsKey)
+    final drawing = paragraph.drawings
+        .where((d) => images.containsKey(d.rid))
         .firstOrNull;
-    if (rid == null) {
+    if (drawing == null) {
       result.add(block);
       continue;
     }
-    final image = images[rid]!;
+    final image = images[drawing.rid]!;
     final entry = _readEntry(archive, _normalizeTarget(image.target));
     if (entry == null) {
       result.add(block);
       continue;
     }
-    result.add(DocxBlockPicture(DocxPicture(
+    final picture = DocxPicture(
       bytes: Uint8List.fromList(entry),
       mime: image.mime,
-    )));
+      widthPx: drawing.cxEmu > 0 ? _emuToPx(drawing.cxEmu) : null,
+      heightPx: drawing.cyEmu > 0 ? _emuToPx(drawing.cyEmu) : null,
+    );
+    result.add(DocxBlockPicture(picture));
   }
   blocks
     ..clear()
@@ -420,3 +456,5 @@ String _normalizeTarget(String target) {
 }
 
 double _twipsToPt(double twips) => twips / 20;
+
+double _emuToPx(int emu) => emu / 914400 * 96;

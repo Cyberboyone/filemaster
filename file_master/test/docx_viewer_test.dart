@@ -36,6 +36,7 @@ String _docXml({bool withTable = false}) {
         <w:drawing>
           <wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
                      distT="0" distB="0" distL="0" distR="0">
+            <wp:extent cx="914400" cy="914400"/>
             <a:graphic><a:graphicData>
               <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
                 <pic:blipFill><a:blip r:embed="rId10"/></pic:blipFill>
@@ -139,6 +140,9 @@ void main() {
       expect(picture, isNotNull);
       expect(picture!.picture.mime, 'image/png');
       expect(picture.picture.bytes, isNotEmpty);
+      // wp:extent 914400x914400 EMU = 1in x 1in = 96x96 logical px.
+      expect(picture.picture.widthPx, closeTo(96.0, 0.01));
+      expect(picture.picture.heightPx, closeTo(96.0, 0.01));
     });
 
     test('rejects files that are not docx', () async {
