@@ -10,10 +10,16 @@ const PdfPageFormat pageFormat = PdfPageFormat.a4;
 /// Builds a multi-page PDF from a title and body text.
 ///
 /// Text flows across pages automatically; the built-in Helvetica font is
-/// embedded so no font asset is required.
+/// embedded so no font asset is required. The body can be styled with
+/// [fontSize], [bold], [italic], [underline] and [align].
 Future<Uint8List> buildTextPdf({
   required String title,
   required String content,
+  double fontSize = 12,
+  bool bold = false,
+  bool italic = false,
+  bool underline = false,
+  pw.TextAlign align = pw.TextAlign.left,
 }) async {
   final doc = pw.Document();
   doc.addPage(
@@ -28,10 +34,16 @@ Future<Uint8List> buildTextPdf({
         pw.SizedBox(height: 16),
         pw.Paragraph(
           text: content,
+          textAlign: align,
           style: pw.TextStyle(
-            font: pw.Font.helvetica(),
-            fontSize: 12,
+            font: bold
+                ? (italic
+                    ? pw.Font.helveticaBoldOblique()
+                    : pw.Font.helveticaBold())
+                : (italic ? pw.Font.helveticaOblique() : pw.Font.helvetica()),
+            fontSize: fontSize,
             lineSpacing: 4,
+            decoration: underline ? pw.TextDecoration.underline : null,
           ),
         ),
       ],

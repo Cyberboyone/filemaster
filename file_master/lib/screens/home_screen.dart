@@ -11,6 +11,7 @@ import '../widgets/message_view.dart';
 import '../widgets/recent_file_tile.dart';
 import 'convert_screen.dart';
 import 'create_pdf_screen.dart';
+import 'create_word_screen.dart';
 import 'files_screen.dart';
 import 'merge_screen.dart';
 import 'scan_screen.dart';
@@ -80,6 +81,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             onTap: () {
               Navigator.pop(sheetContext);
               _openTool(const CreatePdfScreen());
+            },
+          ),
+          (
+            icon: Icons.description_outlined,
+            title: 'Create Word',
+            onTap: () {
+              Navigator.pop(sheetContext);
+              _openTool(const CreateWordScreen());
             },
           ),
           (

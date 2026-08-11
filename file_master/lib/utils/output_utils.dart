@@ -36,6 +36,15 @@ Future<Directory> getDefaultRoot() async {
 /// Writes [bytes] to the output folder as [fileName] and returns the file.
 Future<File> saveOutput(List<int> bytes, String fileName) async {
   final dir = await getOutputDir();
+  return saveOutputIn(dir, bytes, fileName);
+}
+
+/// Writes [bytes] to [dir] as [fileName] and returns the file.
+Future<File> saveOutputIn(
+  Directory dir,
+  List<int> bytes,
+  String fileName,
+) async {
   final file = File(p.join(dir.path, fileName));
   await file.writeAsBytes(bytes, flush: true);
   return file;

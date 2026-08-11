@@ -4,26 +4,25 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:pdf/widgets.dart' as pw;
 
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
 import '../utils/doc_format.dart';
+import '../utils/docx_builder.dart';
 import '../utils/output_utils.dart';
-import '../utils/pdf_builder.dart';
 import '../widgets/editor_tools_bar.dart';
 import 'viewer_screen.dart';
 
-/// Create a PDF document from a title and free text, with file naming,
-/// formatting tools and a choose-your-own save location.
-class CreatePdfScreen extends ConsumerStatefulWidget {
-  const CreatePdfScreen({super.key});
+/// Create a Word (.docx) document from a title and free text, with file
+/// naming, formatting tools and a choose-your-own save location.
+class CreateWordScreen extends ConsumerStatefulWidget {
+  const CreateWordScreen({super.key});
 
   @override
-  ConsumerState<CreatePdfScreen> createState() => _CreatePdfScreenState();
+  ConsumerState<CreateWordScreen> createState() => _CreateWordScreenState();
 }
 
-class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
+class _CreateWordScreenState extends ConsumerState<CreateWordScreen> {
   final _nameController = TextEditingController();
   final _titleController = TextEditingController();
   final _bodyController = TextEditingController();
@@ -56,16 +55,16 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
     setState(() => _saveDir = Directory(path));
   }
 
-  pw.TextAlign get _pdfAlign {
+  String get _alignValue {
     switch (_align) {
       case DocAlign.center:
-        return pw.TextAlign.center;
+        return 'center';
       case DocAlign.right:
-        return pw.TextAlign.right;
+        return 'right';
       case DocAlign.justify:
-        return pw.TextAlign.justify;
+        return 'justify';
       case DocAlign.left:
-        return pw.TextAlign.left;
+        return 'left';
     }
   }
 
@@ -83,21 +82,21 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
         : sanitizeFileName(_nameController.text.trim());
     setState(() => _saving = true);
     try {
-      final bytes = await buildTextPdf(
+      final bytes = await buildDocx(
         title: title.isEmpty ? 'Untitled' : title,
         content: body,
         fontSize: _fontSize,
         bold: _bold,
         italic: _italic,
         underline: _underline,
-        align: _pdfAlign,
+        align: _alignValue,
       );
       final dir = _saveDir ?? await getOutputDir();
-      final saved = await saveOutputIn(dir, bytes, '$name.pdf');
+      final saved = await saveOutputIn(dir, bytes, '$name.docx');
       final recent = RecentFile(
         name: p.basename(saved.path),
         path: saved.path,
-        format: DocFormat.pdf,
+        format: DocFormat.word,
         sizeBytes: await saved.length(),
         lastOpened: DateTime.now(),
       );
@@ -106,7 +105,7 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('PDF created'),
+          content: const Text('Word document created'),
           action: SnackBarAction(
             label: 'Open',
             onPressed: () => Navigator.of(context).push(
@@ -120,7 +119,7 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
       setState(() => _saving = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Could not create PDF: $error')));
+      ).showSnackBar(SnackBar(content: Text('Could not create Word file: $error')));
     }
   }
 
@@ -129,7 +128,7 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create PDF'),
+        title: const Text('Create Word'),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
@@ -166,7 +165,7 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
-                    '.pdf',
+                    '.docx',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,

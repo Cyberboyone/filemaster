@@ -15,8 +15,9 @@ import '../utils/output_utils.dart';
 import '../widgets/message_view.dart';
 import 'viewer_screen.dart';
 
-/// Device file browser grouped by format type (PDF, Word, PowerPoint, Excel,
-/// Text). Image files are excluded.
+/// Device file browser grouped by format type (PDF, Word, Text), with the
+/// sections at the top and the folder picker/refresh below. PowerPoint and
+/// Excel files are no longer listed; image files are excluded too.
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key, this.initialPath});
 
@@ -164,10 +165,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
 
   static bool _isUsableFile(String path) {
     final format = DocFormat.fromPath(path.replaceAll('\\', '/'));
-    // Exclude images, archives, and other unsupported formats.
+    // Exclude images, archives, PowerPoint/Excel (removed) and other
+    // unsupported formats.
     return format != DocFormat.other &&
         format != DocFormat.archive &&
-        format != DocFormat.image;
+        format != DocFormat.image &&
+        format != DocFormat.powerpoint &&
+        format != DocFormat.excel;
   }
 
   Future<void> _requestAccess() async {
@@ -340,13 +344,11 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     }
   }
 
-  /// Groups entries by format type.
+  /// Groups entries by format type (PDF, Word, Text)).
   Map<DocFormat, List<File>> _grouped() {
     final grouped = <DocFormat, List<File>>{
       DocFormat.pdf: [],
       DocFormat.word: [],
-      DocFormat.powerpoint: [],
-      DocFormat.excel: [],
       DocFormat.text: [],
     };
     for (final entry in _entries) {
@@ -409,41 +411,12 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   Widget _buildBrowser() {
     final dir = _current;
     if (dir == null) return const Center(child: CircularProgressIndicator());
-    final scheme = Theme.of(context).colorScheme;
     final grouped = _grouped();
     final sections = grouped.entries.where((e) => e.value.isNotEmpty).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${_entries.length} file${_entries.length == 1 ? '' : 's'} '
-                  'in ${dir.path}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Choose a folder',
-                icon: const Icon(Icons.folder_open_outlined),
-                onPressed: _browseViaPicker,
-              ),
-              IconButton(
-                tooltip: 'Refresh',
-                icon: const Icon(Icons.refresh),
-                onPressed: () => _scan(),
-              ),
-            ],
-          ),
-        ),
         Expanded(
           child: sections.isEmpty
               ? MessageView(
@@ -451,11 +424,11 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
                   title: 'No supported files here',
                   subtitle:
                       'Only files this app can open are shown: PDF, '
-                      'Word, PowerPoint, Excel and text.\n'
+                      'Word and text files.\n'
                       'Tap the folder icon to scan another folder.',
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                   itemCount: sections.length,
                   itemBuilder: (context, index) {
                     final format = sections[index].key;
@@ -477,6 +450,25 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
                     );
                   },
                 ),
+        ),
+        Divider(height: 1, color: Theme.of(context).colorScheme.outlineVariant),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+          child: Row(
+            children: [
+              TextButton.icon(
+                onPressed: _browseViaPicker,
+                icon: const Icon(Icons.folder_open_outlined, size: 18),
+                label: const Text('Choose folder'),
+              ),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh),
+                onPressed: () => _scan(),
+              ),
+            ],
+          ),
         ),
       ],
     );
