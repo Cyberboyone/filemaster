@@ -10,15 +10,69 @@ class RecentFileTile extends StatelessWidget {
     required this.file,
     this.onTap,
     this.onDismiss,
+    this.onLongPress,
+    this.selecting = false,
+    this.selected = false,
   });
 
   final RecentFile file;
   final VoidCallback? onTap;
   final VoidCallback? onDismiss;
+  final VoidCallback? onLongPress;
+  final bool selecting;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final tile = Material(
+      color: selecting
+          ? (selected
+              ? scheme.primaryContainer.withValues(alpha: 0.4)
+              : scheme.surfaceContainerLow)
+          : scheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(16),
+      child: ListTile(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 4,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        leading: selecting
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    selected ? Icons.check_circle : Icons.circle_outlined,
+                    size: 22,
+                    color: selected ? scheme.primary : scheme.outline,
+                  ),
+                  const SizedBox(width: 8),
+                  _FormatIcon(format: file.format),
+                ],
+              )
+            : _FormatIcon(format: file.format),
+        title: Text(
+          file.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            '${file.format.label}  •  ${_relativeTime(context, file.lastOpened)}',
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+          ),
+        ),
+        trailing: _formatSize(context, file.sizeBytes),
+      ),
+    );
+    if (selecting || onDismiss == null) return tile;
     return Dismissible(
       key: ValueKey(file.path),
       direction: DismissDirection.endToStart,
@@ -32,35 +86,7 @@ class RecentFileTile extends StatelessWidget {
         ),
         child: Icon(Icons.delete_outline, color: scheme.onErrorContainer),
       ),
-      child: Material(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-        child: ListTile(
-          onTap: onTap,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 4,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          leading: _FormatIcon(format: file.format),
-          title: Text(
-            file.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              '${file.format.label}  •  ${_relativeTime(context, file.lastOpened)}',
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-            ),
-          ),
-          trailing: _formatSize(context, file.sizeBytes),
-        ),
-      ),
+      child: tile,
     );
   }
 

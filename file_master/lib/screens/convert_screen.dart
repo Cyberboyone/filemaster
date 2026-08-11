@@ -199,15 +199,10 @@ class _ConvertScreenState extends ConsumerState<ConvertScreen> {
     if (!mounted) return;
     setState(() => _busy = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        action: SnackBarAction(
-          label: 'Open',
-          onPressed: () => Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => ViewerScreen(file: recent))),
-        ),
-      ),
+      SnackBar(content: Text('$message — opening…')),
+    );
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
     );
   }
 

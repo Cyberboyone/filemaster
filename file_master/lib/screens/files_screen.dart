@@ -44,6 +44,17 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   bool _selecting = false;
   final Set<String> _selected = {};
 
+  /// Active format filter; null shows every format section.
+  DocFormat? _filter;
+
+  /// The subsection chips shown at the top (All + the supported formats).
+  static const List<(String, DocFormat?)> _filterOptions = [
+    ('All', null),
+    ('PDF', DocFormat.pdf),
+    ('Word', DocFormat.word),
+    ('Text', DocFormat.text),
+  ];
+
   final ScrollController _scrollController = ScrollController();
 
   /// Lazily computed page counts for PDF files (path -> future).
@@ -420,7 +431,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     if (dir == null) return const Center(child: CircularProgressIndicator());
     final scheme = Theme.of(context).colorScheme;
     final grouped = _grouped();
-    final sections = grouped.entries.where((e) => e.value.isNotEmpty).toList();
+    var sections = grouped.entries.where((e) => e.value.isNotEmpty).toList();
+    if (_filter != null) {
+      sections = sections.where((e) => e.key == _filter).toList();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,15 +464,49 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
             ],
           ),
         ),
+        // Subsection chips: All / PDF / Word / Text.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 2, 12, 0),
+          child: Row(
+            children: [
+              for (final option in _filterOptions) ...[
+                ChoiceChip(
+                  label: Text(option.$1),
+                  selected: _filter == option.$2,
+                  onSelected: (_) => setState(() => _filter = option.$2),
+                  showCheckmark: false,
+                  visualDensity: VisualDensity.compact,
+                  labelStyle: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: _filter == option.$2
+                        ? scheme.onSecondaryContainer
+                        : scheme.onSurfaceVariant,
+                  ),
+                  side: BorderSide(
+                    color: _filter == option.$2
+                        ? Colors.transparent
+                        : scheme.outlineVariant,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
         Expanded(
           child: sections.isEmpty
               ? MessageView(
                   icon: Icons.filter_alt_off_outlined,
-                  title: 'No supported files here',
-                  subtitle:
-                      'Only files this app can open are shown: PDF, '
-                      'Word and text files.\n'
-                      'Tap the folder icon to scan another folder.',
+                  title: _filter == null
+                      ? 'No supported files here'
+                      : 'No ${_filter!.label.toLowerCase()} files here',
+                  subtitle: _filter == null
+                      ? 'Only files this app can open are shown: PDF, '
+                          'Word and text files.\n'
+                          'Tap the folder icon to scan another folder.'
+                      : 'Switch to another format above, or tap the '
+                          'folder icon to scan another folder.',
                 )
               : _buildFileList(sections, scheme),
         ),

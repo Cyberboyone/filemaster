@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
+import 'package:share_plus/share_plus.dart';
 
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
@@ -289,6 +293,10 @@ class _RecentsTabState extends ConsumerState<_RecentsTab> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
 
+  /// Multi-select state (paths of selected files).
+  bool _selecting = false;
+  final Set<String> _selected = {};
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -305,8 +313,172 @@ class _RecentsTabState extends ConsumerState<_RecentsTab> {
     ).push(MaterialPageRoute(builder: (_) => ViewerScreen(file: file)));
   }
 
+  // --- multi-select --------------------------------------------------------
+
+  void _enterSelection(RecentFile file) {
+    setState(() {
+      _selecting = true;
+      _selected.add(file.path);
+    });
+  }
+
+  void _exitSelection() {
+    setState(() {
+      _selecting = false;
+      _selected.clear();
+    });
+  }
+
+  void _toggleSelected(String path) {
+    setState(() {
+      if (!_selected.remove(path)) _selected.add(path);
+    });
+  }
+
+  Future<void> _shareSelection() async {
+    final files = _selected.map((path) => XFile(path)).toList();
+    await SharePlus.instance.share(ShareParams(files: files));
+  }
+
+  Future<void> _renameSelected() async {
+    if (_selected.length != 1) return;
+    final file = File(_selected.first);
+    final controller = TextEditingController(text: p.basename(file.path));
+    if (!mounted) return;
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rename'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'New name'),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    if (newName == null || newName.trim().isEmpty) return;
+    final target = File(p.join(file.parent.path, newName.trim()));
+    try {
+      await file.rename(target.path);
+      final recent = RecentFile(
+        name: newName.trim(),
+        path: target.path,
+        format: DocFormat.fromPath(target.path),
+        sizeBytes: await target.length(),
+        lastOpened: DateTime.now(),
+      );
+      final notifier = ref.read(recentsControllerProvider.notifier);
+      await notifier.remove(file.path);
+      await notifier.recordOpen(recent);
+      _exitSelection();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not rename: $error')));
+    }
+  }
+
+  Future<void> _deleteSelection() async {
+    final count = _selected.length;
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Delete $count file${count == 1 ? '' : 's'}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    var failed = 0;
+    for (final path in _selected.toList()) {
+      try {
+        await File(path).delete();
+        await ref.read(recentsControllerProvider.notifier).remove(path);
+      } catch (_) {
+        failed++;
+      }
+    }
+    _exitSelection();
+    if (!mounted) return;
+    if (failed > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content:
+              Text('$failed file${failed == 1 ? '' : 's'} could not be deleted'),
+        ),
+      );
+    }
+  }
+
+  Widget _buildSelectionBar(ColorScheme scheme) {
+    return Material(
+      elevation: 8,
+      color: scheme.surfaceContainerHigh,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'Cancel selection',
+                icon: const Icon(Icons.close),
+                onPressed: _exitSelection,
+              ),
+              Text(
+                '${_selected.length} selected',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              if (_selected.length == 1)
+                IconButton(
+                  tooltip: 'Rename',
+                  icon: const Icon(Icons.drive_file_rename_outline),
+                  onPressed: _renameSelected,
+                ),
+              IconButton(
+                tooltip: 'Share',
+                icon: const Icon(Icons.share_outlined),
+                onPressed: _selected.isEmpty ? null : _shareSelection,
+              ),
+              IconButton(
+                tooltip: 'Delete',
+                icon: Icon(Icons.delete_outline, color: scheme.error),
+                onPressed: _selected.isEmpty ? null : _deleteSelection,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final recents = ref.watch(recentsControllerProvider);
+    final hasRecents = recents.valueOrNull?.isNotEmpty ?? false;
     return Column(
       children: [
         Padding(
@@ -335,18 +507,30 @@ class _RecentsTabState extends ConsumerState<_RecentsTab> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-                child: Text(
-                  'Recent files',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                padding: const EdgeInsets.fromLTRB(20, 8, 12, 4),
+                child: Row(
+                  children: [
+                    Text(
+                      'Recent files',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const Spacer(),
+                    if (!_selecting && hasRecents)
+                      TextButton.icon(
+                        onPressed: () => setState(() => _selecting = true),
+                        icon: const Icon(Icons.check_box_outlined, size: 18),
+                        label: const Text('Select'),
+                      ),
+                  ],
                 ),
               ),
               Expanded(child: _buildRecentsList()),
             ],
           ),
         ),
+        if (_selecting) _buildSelectionBar(scheme),
       ],
     );
   }
@@ -394,10 +578,23 @@ class _RecentsTabState extends ConsumerState<_RecentsTab> {
             final file = filtered[index];
             return RecentFileTile(
               file: file,
-              onTap: () => _openFile(file),
-              onDismiss: () => ref
-                  .read(recentsControllerProvider.notifier)
-                  .remove(file.path),
+              selecting: _selecting,
+              selected: _selected.contains(file.path),
+              onTap: () {
+                if (_selecting) {
+                  _toggleSelected(file.path);
+                } else {
+                  _openFile(file);
+                }
+              },
+              onLongPress: () {
+                if (!_selecting) _enterSelection(file);
+              },
+              onDismiss: _selecting
+                  ? null
+                  : () => ref
+                        .read(recentsControllerProvider.notifier)
+                        .remove(file.path),
             );
           },
         );

@@ -105,15 +105,10 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('PDF created'),
-          action: SnackBarAction(
-            label: 'Open',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
-            ),
-          ),
-        ),
+        const SnackBar(content: Text('PDF created — opening…')),
+      );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
       );
     } catch (error) {
       if (!mounted) return;

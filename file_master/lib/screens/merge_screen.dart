@@ -67,14 +67,11 @@ class _MergePdfScreenState extends ConsumerState<MergePdfScreen> {
       setState(() => _merging = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Merged ${_paths.length} files into one PDF'),
-          action: SnackBarAction(
-            label: 'Open',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
-            ),
-          ),
+          content: Text('Merged ${_paths.length} files into one PDF — opening…'),
         ),
+      );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
       );
     } catch (error) {
       if (!mounted) return;

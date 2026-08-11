@@ -104,15 +104,10 @@ class _CreateWordScreenState extends ConsumerState<CreateWordScreen> {
       if (!mounted) return;
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Word document created'),
-          action: SnackBarAction(
-            label: 'Open',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
-            ),
-          ),
-        ),
+        const SnackBar(content: Text('Word document created — opening…')),
+      );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
       );
     } catch (error) {
       if (!mounted) return;
