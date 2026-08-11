@@ -142,92 +142,96 @@ class _CreateWordScreenState extends ConsumerState<CreateWordScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _nameController,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'File name',
-                      hintText: 'e.g. My document',
-                      border: OutlineInputBorder(),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _nameController,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: const InputDecoration(
+                        labelText: 'File name',
+                        hintText: 'e.g. My document',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Text(
-                    '.docx',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: scheme.onSurfaceVariant,
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      '.docx',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.folder_outlined,
-                    size: 18, color: scheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _saveDir?.path ?? 'Default folder (FileMaster)',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _pickFolder,
-                  icon: const Icon(Icons.create_new_folder_outlined, size: 18),
-                  label: const Text('Change'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _titleController,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(
-                labelText: 'Document title',
-                border: OutlineInputBorder(),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            EditorToolsBar(
-              fontSize: _fontSize,
-              bold: _bold,
-              italic: _italic,
-              underline: _underline,
-              align: _align,
-              onFontSize: (size) => setState(() => _fontSize = size),
-              onBold: (value) => setState(() => _bold = value),
-              onItalic: (value) => setState(() => _italic = value),
-              onUnderline: (value) => setState(() => _underline = value),
-              onAlign: (value) => setState(() => _align = value),
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: TextField(
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.folder_outlined,
+                      size: 18, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _saveDir?.path ?? 'Default folder (FileMaster)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _pickFolder,
+                    icon: const Icon(Icons.create_new_folder_outlined, size: 18),
+                    label: const Text('Change'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _titleController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Document title',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              EditorToolsBar(
+                fontSize: _fontSize,
+                bold: _bold,
+                italic: _italic,
+                underline: _underline,
+                align: _align,
+                onFontSize: (size) => setState(() => _fontSize = size),
+                onBold: (value) => setState(() => _bold = value),
+                onItalic: (value) => setState(() => _italic = value),
+                onUnderline: (value) => setState(() => _underline = value),
+                onAlign: (value) => setState(() => _align = value),
+              ),
+              const SizedBox(height: 12),
+              TextField(
                 controller: _bodyController,
-                expands: true,
+                minLines: 8,
                 maxLines: null,
-                minLines: null,
                 textAlignVertical: TextAlignVertical.top,
                 style: TextStyle(
                   fontSize: _fontSize,
@@ -243,8 +247,8 @@ class _CreateWordScreenState extends ConsumerState<CreateWordScreen> {
                   border: OutlineInputBorder(),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

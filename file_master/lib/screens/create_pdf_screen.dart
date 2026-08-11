@@ -143,11 +143,17 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -223,26 +229,23 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
               onAlign: (value) => setState(() => _align = value),
             ),
             const SizedBox(height: 12),
-            Expanded(
-              child: TextField(
-                controller: _bodyController,
-                expands: true,
-                maxLines: null,
-                minLines: null,
-                textAlignVertical: TextAlignVertical.top,
-                style: TextStyle(
-                  fontSize: _fontSize,
-                  fontWeight: _bold ? FontWeight.w700 : FontWeight.w400,
-                  fontStyle: _italic ? FontStyle.italic : FontStyle.normal,
-                  decoration: _underline
-                      ? TextDecoration.underline
-                      : TextDecoration.none,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Content',
-                  alignLabelWithHint: true,
-                  border: OutlineInputBorder(),
-                ),
+            TextField(
+              controller: _bodyController,
+              minLines: 8,
+              maxLines: null,
+              textAlignVertical: TextAlignVertical.top,
+              style: TextStyle(
+                fontSize: _fontSize,
+                fontWeight: _bold ? FontWeight.w700 : FontWeight.w400,
+                fontStyle: _italic ? FontStyle.italic : FontStyle.normal,
+                decoration: _underline
+                    ? TextDecoration.underline
+                    : TextDecoration.none,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Content',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
               ),
             ),
           ],
