@@ -4,7 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:pdf/pdf.dart' as pw;
+import 'package:pdfx/pdfx.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -341,8 +341,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   Future<int?> _pageCount(File file) {
     return _pageCounts.putIfAbsent(file.path, () async {
       try {
-        final doc = await pw.PdfDocument.openFile(file.path);
-        final count = doc.pages.count;
+        final doc = await PdfDocument.openFile(file.path);
+        final count = doc.pagesCount;
         await doc.close();
         return count;
       } catch (_) {
