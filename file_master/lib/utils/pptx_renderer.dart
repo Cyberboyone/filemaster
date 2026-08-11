@@ -104,13 +104,13 @@ class PptxRenderSlide {
 /// images and geometry. Throws `FormatException` if `bytes` is not a
 /// readable PowerPoint archive.
 List<PptxRenderSlide> parsePptxRender(Uint8List bytes) {
-  Archive? archive;
+  final Archive archive;
   try {
     archive = ZipDecoder().decodeBytes(bytes);
   } catch (_) {
     throw const FormatException('Not a PPTX archive');
   }
-  if (archive == null || archive.isEmpty) {
+  if (archive.isEmpty) {
     throw const FormatException('Not a PPTX archive');
   }
 
@@ -472,7 +472,8 @@ Uint8List? _readEntryBytes(Archive archive, String name) {
 String _normalizeTarget(String baseDir, String target) {
   final path = target.replaceAll('\\', '/').replaceAll('%20', ' ');
   if (path.startsWith('/')) return path.substring(1);
-  final segments = (baseDir + '/' + Uri.decodeComponent(path)).split('/');
+  final segments =
+      ('$baseDir/${Uri.decodeComponent(path)}').split('/');
   final resolved = <String>[];
   for (final segment in segments) {
     if (segment == '..') {
