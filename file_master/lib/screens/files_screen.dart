@@ -4,15 +4,16 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:pdfx/pdfx.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
+import '../providers/selection_provider.dart';
 import '../theme/format_colors.dart';
 import '../utils/doc_format.dart';
 import '../utils/output_utils.dart';
+import '../utils/pdf_page_counter.dart';
 import '../widgets/message_view.dart';
 import 'viewer_screen.dart';
 
@@ -56,9 +57,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   ];
 
   final ScrollController _scrollController = ScrollController();
-
-  /// Lazily computed page counts for PDF files (path -> future).
-  final Map<String, Future<int?>> _pageCounts = {};
 
   @override
   void initState() {
@@ -134,6 +132,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
       _selecting = false;
       _selected.clear();
     });
+    ref.read(selectionActiveProvider.notifier).state = false;
     final entries = await _listUsableFiles(dir);
     entries.sort((a, b) {
       return a.path.toLowerCase().compareTo(b.path.toLowerCase());
@@ -243,6 +242,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   // --- multi-select --------------------------------------------------------
 
   void _enterSelection(String path) {
+    ref.read(selectionActiveProvider.notifier).state = true;
     setState(() {
       _selecting = true;
       _selected.add(path);
@@ -250,6 +250,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   }
 
   void _exitSelection() {
+    ref.read(selectionActiveProvider.notifier).state = false;
     setState(() {
       _selecting = false;
       _selected.clear();
@@ -260,6 +261,12 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
     setState(() {
       if (!_selected.remove(path)) _selected.add(path);
     });
+  }
+
+  /// Enters selection mode from the header "Select" button (no first item).
+  void _startSelection() {
+    ref.read(selectionActiveProvider.notifier).state = true;
+    setState(() => _selecting = true);
   }
 
   Future<void> _shareSelection() async {
@@ -348,19 +355,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
   }
 
   // --- page counts ---------------------------------------------------------
-
-  Future<int?> _pageCount(File file) {
-    return _pageCounts.putIfAbsent(file.path, () async {
-      try {
-        final doc = await PdfDocument.openFile(file.path);
-        final count = doc.pagesCount;
-        await doc.close();
-        return count;
-      } catch (_) {
-        return null;
-      }
-    });
-  }
 
   /// Groups entries by format type (PDF, Word, Text).
   Map<DocFormat, List<File>> _grouped() {
@@ -452,7 +446,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
               const Spacer(),
               if (!_selecting)
                 TextButton.icon(
-                  onPressed: () => setState(() => _selecting = true),
+                  onPressed: _startSelection,
                   icon: const Icon(Icons.check_box_outlined, size: 18),
                   label: const Text('Select'),
                 ),
@@ -550,7 +544,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
             selecting: _selecting,
             selected: _selected.contains(file.path),
             pageCountFuture: format == DocFormat.pdf
-                ? _pageCount(file)
+                ? pdfPageCount(file.path)
                 : null,
             onTap: () {
               if (_selecting) {

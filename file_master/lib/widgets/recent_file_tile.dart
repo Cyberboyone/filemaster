@@ -13,6 +13,7 @@ class RecentFileTile extends StatelessWidget {
     this.onLongPress,
     this.selecting = false,
     this.selected = false,
+    this.pageCountFuture,
   });
 
   final RecentFile file;
@@ -21,6 +22,9 @@ class RecentFileTile extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool selecting;
   final bool selected;
+
+  /// Page count for PDF files; shown in the subtitle when available.
+  final Future<int?>? pageCountFuture;
 
   @override
   Widget build(BuildContext context) {
@@ -64,10 +68,14 @@ class RecentFileTile extends StatelessWidget {
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2),
-          child: Text(
-            '${file.format.label}  •  ${_relativeTime(context, file.lastOpened)}',
-            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
-          ),
+          child: pageCountFuture == null
+              ? _subtitle(context)
+              : FutureBuilder<int?>(
+                  future: pageCountFuture,
+                  builder: (context, snapshot) {
+                    return _subtitle(context, pages: snapshot.data);
+                  },
+                ),
         ),
         trailing: _formatSize(context, file.sizeBytes),
       ),
@@ -87,6 +95,18 @@ class RecentFileTile extends StatelessWidget {
         child: Icon(Icons.delete_outline, color: scheme.onErrorContainer),
       ),
       child: tile,
+    );
+  }
+
+  Widget _subtitle(BuildContext context, {int? pages}) {
+    final scheme = Theme.of(context).colorScheme;
+    final pagesText = pages == null
+        ? ''
+        : '  •  $pages page${pages == 1 ? '' : 's'}';
+    return Text(
+      '${file.format.label}  •  ${_relativeTime(context, file.lastOpened)}'
+      '$pagesText',
+      style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
     );
   }
 

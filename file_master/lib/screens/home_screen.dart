@@ -8,9 +8,11 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
+import '../providers/selection_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ad_banner.dart';
 import '../utils/doc_format.dart';
+import '../utils/pdf_page_counter.dart';
 import '../widgets/message_view.dart';
 import '../widgets/recent_file_tile.dart';
 import 'convert_screen.dart';
@@ -156,6 +158,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final selectionActive = ref.watch(selectionActiveProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('File Master'),
@@ -220,11 +223,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Quick actions',
-        onPressed: _showQuickActions,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: selectionActive
+          ? null
+          : FloatingActionButton(
+              tooltip: 'Quick actions',
+              onPressed: _showQuickActions,
+              child: const Icon(Icons.add),
+            ),
     );
   }
 }
@@ -291,6 +296,7 @@ class _RecentsTab extends ConsumerStatefulWidget {
 
 class _RecentsTabState extends ConsumerState<_RecentsTab> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   String _query = '';
 
   /// Multi-select state (paths of selected files).
@@ -300,6 +306,7 @@ class _RecentsTabState extends ConsumerState<_RecentsTab> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -316,13 +323,20 @@ class _RecentsTabState extends ConsumerState<_RecentsTab> {
   // --- multi-select --------------------------------------------------------
 
   void _enterSelection(RecentFile file) {
+    ref.read(selectionActiveProvider.notifier).state = true;
     setState(() {
       _selecting = true;
       _selected.add(file.path);
     });
   }
 
+  void _startSelection() {
+    ref.read(selectionActiveProvider.notifier).state = true;
+    setState(() => _selecting = true);
+  }
+
   void _exitSelection() {
+    ref.read(selectionActiveProvider.notifier).state = false;
     setState(() {
       _selecting = false;
       _selected.clear();
@@ -519,7 +533,7 @@ class _RecentsTabState extends ConsumerState<_RecentsTab> {
                     const Spacer(),
                     if (!_selecting && hasRecents)
                       TextButton.icon(
-                        onPressed: () => setState(() => _selecting = true),
+                        onPressed: _startSelection,
                         icon: const Icon(Icons.check_box_outlined, size: 18),
                         label: const Text('Select'),
                       ),
@@ -570,33 +584,42 @@ class _RecentsTabState extends ConsumerState<_RecentsTab> {
             subtitle: 'Try a different search',
           );
         }
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
-          itemCount: filtered.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final file = filtered[index];
-            return RecentFileTile(
-              file: file,
-              selecting: _selecting,
-              selected: _selected.contains(file.path),
-              onTap: () {
-                if (_selecting) {
-                  _toggleSelected(file.path);
-                } else {
-                  _openFile(file);
-                }
-              },
-              onLongPress: () {
-                if (!_selecting) _enterSelection(file);
-              },
-              onDismiss: _selecting
-                  ? null
-                  : () => ref
-                        .read(recentsControllerProvider.notifier)
-                        .remove(file.path),
-            );
-          },
+        return Scrollbar(
+          controller: _scrollController,
+          thumbVisibility: true,
+          trackVisibility: true,
+          child: ListView.separated(
+            controller: _scrollController,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
+            itemCount: filtered.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final file = filtered[index];
+              return RecentFileTile(
+                file: file,
+                pageCountFuture: file.format == DocFormat.pdf
+                    ? pdfPageCount(file.path)
+                    : null,
+                selecting: _selecting,
+                selected: _selected.contains(file.path),
+                onTap: () {
+                  if (_selecting) {
+                    _toggleSelected(file.path);
+                  } else {
+                    _openFile(file);
+                  }
+                },
+                onLongPress: () {
+                  if (!_selecting) _enterSelection(file);
+                },
+                onDismiss: _selecting
+                    ? null
+                    : () => ref
+                          .read(recentsControllerProvider.notifier)
+                          .remove(file.path),
+              );
+            },
+          ),
         );
       },
     );
