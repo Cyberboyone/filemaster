@@ -199,6 +199,10 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
 
   Widget _buildTable(DocxTable table, ColorScheme scheme) {
     if (table.rows.isEmpty) return const SizedBox.shrink();
+    final maxCols = table.rows.map((r) => r.cells.length).fold<int>(
+      0,
+      (a, b) => b > a ? b : a,
+    );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: ClipRRect(
@@ -233,6 +237,9 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
                         child: Text(cell.plainText),
                       ),
                     ),
+                  // Pad shorter rows so every TableRow has [maxCols] cells.
+                  for (var i = row.cells.length; i < maxCols; i++)
+                    const SizedBox.shrink(),
                 ],
               ),
           ],
