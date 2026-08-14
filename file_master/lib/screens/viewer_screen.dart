@@ -150,23 +150,153 @@ class _PdfViewer extends StatefulWidget {
   State<_PdfViewer> createState() => _PdfViewerState();
 }
 
+/// PDF viewer that renders pages in the background and caches them, so
+/// swiping between pages never blocks on the native renderer (the default
+/// pdfx pinch view re-renders while scrolling, which freezes on large
+/// files and low-end devices).
 class _PdfViewerState extends State<_PdfViewer> {
-  late final Future<PdfDocument> _document;
+  late final Future<PdfDocument> _document = PdfDocument.openFile(widget.path);
+  final PageController _controller = PageController();
 
-  @override
-  void initState() {
-    super.initState();
-    _document = PdfDocument.openFile(widget.path);
-  }
+  /// Rendered page images, evicted oldest-first.
+  final Map<int, ui.Image> _images = {};
+  final List<int> _order = [];
+
+  /// Pages currently being rendered (dedupe).
+  final Set<int> _rendering = {};
+
+  /// Page aspect ratios (width / height), from the native page.
+  final Map<int, double> _aspects = {};
+
+  /// How much sharper than screen size pages are rendered (crisp, cheap).
+  static const double _quality = 1.5;
+
+  /// Maximum rendered pages kept in memory.
+  static const int _maxCached = 16;
+
+  static const List<double> _zoomLevels = [1.0, 1.5, 2.0];
+  double _zoom = 1.0;
+  int _current = 0;
 
   @override
   void dispose() {
+    _controller.dispose();
+    for (final image in _images.values) {
+      image.dispose();
+    }
     unawaited(_document.then((doc) => doc.close()));
     super.dispose();
   }
 
+  Future<void> _renderPage(int index, double viewportWidth) async {
+    if (_rendering.contains(index) || _images.containsKey(index)) return;
+    _rendering.add(index);
+    try {
+      final document = await _document;
+      final page = await document.getPage(index + 1);
+      _aspects[index] = page.width / page.height;
+      ui.Image? image;
+      try {
+        final renderWidth = (viewportWidth * _zoom * _quality).clamp(
+          100.0,
+          4096.0,
+        );
+        final renderHeight = renderWidth / _aspects[index]!;
+        final rendered = await page.render(
+          width: renderWidth,
+          height: renderHeight,
+          format: PdfPageImageFormat.png,
+        );
+        if (rendered != null) {
+          final codec = await ui.instantiateImageCodec(rendered.bytes);
+          image = (await codec.getNextFrame()).image;
+        }
+      } catch (_) {
+        image = null;
+      } finally {
+        await page.close();
+      }
+      if (!mounted || image == null) return;
+      final ready = image;
+      setState(() {
+        _images.remove(index)?.dispose();
+        _images[index] = ready;
+        _order.add(index);
+        while (_order.length > _maxCached) {
+          final victim = _order.removeAt(0);
+          final cached = _images.remove(victim);
+          if (cached != null && cached != ready) cached.dispose();
+        }
+      });
+    } catch (_) {
+      // Unreadable page: keep the placeholder.
+    } finally {
+      _rendering.remove(index);
+    }
+  }
+
+  void _setZoom(double zoom) {
+    setState(() {
+      _zoom = zoom;
+      for (final image in _images.values) {
+        image.dispose();
+      }
+      _images.clear();
+      _order.clear();
+      _aspects.clear();
+    });
+  }
+
+  Widget _buildPage(int index, double viewportWidth) {
+    final image = _images[index];
+    final aspect = _aspects[index];
+    if (image == null || aspect == null) {
+      // Kick off the render from a post-frame callback so this build
+      // completes instantly; the page pops in when ready.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _renderPage(index, viewportWidth);
+      });
+      return const Center(
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: CircularProgressIndicator(strokeWidth: 3),
+        ),
+      );
+    }
+    final width = viewportWidth * _zoom;
+    final height = width / aspect;
+    final page = Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Theme.of(context).colorScheme.surfaceContainerHigh
+            : Colors.white,
+        borderRadius: BorderRadius.circular(2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: RawImage(image: image, fit: BoxFit.fill),
+    );
+    if (_zoom > 1.0) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: page,
+      );
+    }
+    return Center(child: page);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return FutureBuilder<PdfDocument>(
       future: _document,
       builder: (context, snapshot) {
@@ -180,10 +310,92 @@ class _PdfViewerState extends State<_PdfViewer> {
             subtitle: '${snapshot.error}',
           );
         }
-        return PdfViewPinch(
-          controller: PdfControllerPinch(
-            document: Future.value(snapshot.data!),
-          ),
+        final document = snapshot.data!;
+        final pages = document.pagesCount;
+        if (pages == 0) {
+          return const _CenterMessage(
+            icon: Icons.picture_as_pdf,
+            title: 'Empty PDF',
+            subtitle: 'This document has no pages.',
+          );
+        }
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final viewportWidth = constraints.maxWidth;
+            return Column(
+              children: [
+                Expanded(
+                  child: PageView.builder(
+                    controller: _controller,
+                    itemCount: pages,
+                    onPageChanged: (index) {
+                      setState(() => _current = index);
+                      for (var distance = 1; distance <= 2; distance++) {
+                        final next = index + distance;
+                        final prev = index - distance;
+                        if (next < pages) _renderPage(next, viewportWidth);
+                        if (prev >= 0) _renderPage(prev, viewportWidth);
+                      }
+                    },
+                    itemBuilder: (context, index) {
+                      if (_images.containsKey(index) ||
+                          _rendering.contains(index)) {
+                        return _buildPage(index, viewportWidth);
+                      }
+                      _renderPage(index, viewportWidth);
+                      return _buildPage(index, viewportWidth);
+                    },
+                  ),
+                ),
+                Material(
+                  color: scheme.surfaceContainerLow,
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 2,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          IconButton(
+                            tooltip: 'Zoom out',
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.zoom_out),
+                            onPressed: () {
+                              final index =
+                                  _zoomLevels.lastIndexWhere((z) => z < _zoom);
+                              if (index >= 0) _setZoom(_zoomLevels[index]);
+                            },
+                          ),
+                          Text(
+                            'Page ${_current + 1} of $pages',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Zoom in',
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(Icons.zoom_in),
+                            onPressed: () {
+                              final index = _zoomLevels.indexWhere(
+                                (z) => z > _zoom,
+                              );
+                              if (index >= 0) _setZoom(_zoomLevels[index]);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );

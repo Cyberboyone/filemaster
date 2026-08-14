@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../utils/docx_parser.dart';
@@ -15,7 +16,9 @@ class DocxDocumentView extends StatefulWidget {
 }
 
 class _DocxDocumentViewState extends State<DocxDocumentView> {
-  late final Future<ParsedDocx> _load = parseDocx(widget.path);
+  // Parsing runs on a background isolate so large documents never block
+  // the UI thread.
+  late final Future<ParsedDocx> _load = compute(parseDocx, widget.path);
 
   @override
   Widget build(BuildContext context) {
@@ -30,37 +33,41 @@ class _DocxDocumentViewState extends State<DocxDocumentView> {
           return _DocxError(scheme: scheme);
         }
         final blocks = snapshot.data!.blocks;
+        // Widget objects are cheap; layout is what matters, and that is
+        // delegated to a lazily laid-out sliver list below.
+        final flat = <Widget>[];
+        for (final block in blocks) {
+          flat.addAll(_buildBlocks(block, scheme));
+        }
         return SelectionArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-            children: [
-              // Page-like paper card
-              Container(
-                decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? scheme.surfaceContainerHigh
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? scheme.surfaceContainerHigh
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 28,
+              ],
+            ),
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 28,
+                  ),
+                  sliver: SliverList.builder(
+                    itemCount: flat.length,
+                    itemBuilder: (context, index) => flat[index],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final block in blocks) ..._buildBlocks(block, scheme),
-                  ],
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
