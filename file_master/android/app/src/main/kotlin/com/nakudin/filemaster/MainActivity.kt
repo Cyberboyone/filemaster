@@ -1,4 +1,4 @@
-package com.filemaster.file_master
+package com.nakudin.filemaster
 
 import io.flutter.embedding.android.FlutterActivity
 
