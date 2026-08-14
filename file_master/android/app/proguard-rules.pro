@@ -36,9 +36,24 @@
 # printing
 -keep class net.nfet.flutter.printing.** { *; }
 
+# shared_preferences
+-keep class io.flutter.plugins.sharedpreferences.** { *; }
+
+# file_picker
+-keep class com.mr.flutter.plugin.filepicker.** { *; }
+
+# cunning_document_scanner
+-keep class com.cunningraven.cunning_document_scanner.** { *; }
+-dontwarn com.cunningraven.cunning_document_scanner.**
+
 # archive (used for docx parsing)
 -keep class com.github.nicholasgasior.** { *; }
 -dontwarn com.github.nicholasgasior.**
+
+# Kotlin
+-keep class kotlin.** { *; }
+-keepclassmembers class kotlin.Metadata { *; }
+-dontwarn kotlin.**
 
 # Keep sealed classes used in pattern matching
 -keep class dev.flutter.**.sealed.** { *; }
