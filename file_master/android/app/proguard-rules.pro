@@ -55,5 +55,15 @@
 -keepclassmembers class kotlin.Metadata { *; }
 -dontwarn kotlin.**
 
+# AndroidX WorkManager + Room (needed at app startup via InitializationProvider)
+-keep class androidx.work.** { *; }
+-keep class androidx.room.** { *; }
+-keep @androidx.room.Entity class * { *; }
+-keep @androidx.room.Dao class * { *; }
+-keep @androidx.room.Database class * { *; }
+-keep class * extends androidx.room.RoomDatabase { *; }
+-dontwarn androidx.work.**
+-dontwarn androidx.room.**
+
 # Keep sealed classes used in pattern matching
 -keep class dev.flutter.**.sealed.** { *; }
