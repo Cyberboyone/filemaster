@@ -7,11 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app.dart';
 import 'providers/settings_provider.dart';
+import 'services/ad_interstitial.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   unawaited(MobileAds.instance.initialize());
+  AdInterstitial.instance.preload();
   runApp(
     ProviderScope(
       overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],

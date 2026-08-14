@@ -8,6 +8,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
+import '../services/ad_interstitial.dart';
 import '../utils/doc_format.dart';
 import '../utils/output_utils.dart';
 import '../utils/pdf_builder.dart';
@@ -107,8 +108,13 @@ class _CreatePdfScreenState extends ConsumerState<CreatePdfScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('PDF created — opening…')),
       );
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
+      AdInterstitial.instance.show(
+        onDone: () {
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
+          );
+        },
       );
     } catch (error) {
       if (!mounted) return;

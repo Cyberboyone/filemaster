@@ -1,4 +1,4 @@
-name: Build APK
+name: Build
 
 on:
   push:
@@ -44,17 +44,17 @@ jobs:
           echo "::warning::DAEMON_ARGS = $ARGS"
           true
 
-      - name: Build APK (debug, no daemon)
+      - name: Build release AAB and APK
         working-directory: file_master
         env:
-          GRADLE_OPTS: "-Xmx6G -XX:MaxMetaspaceSize=2G"
-          JAVA_OPTS: "-Xmx6G -XX:MaxMetaspaceSize=2G"
+          GRADLE_OPTS: "-Xmx8G -XX:MaxMetaspaceSize=2G"
+          JAVA_OPTS: "-Xmx8G -XX:MaxMetaspaceSize=2G"
         run: |
           set +e
           (while true; do echo "$(date +%T) $(free -m | awk '/Mem:/{print $2"MB total "$7"MB avail"}')" >> mem_trace.log; sleep 10; done) &
           MON=$!
           cd android
-          ./gradlew :app:assembleDebug --no-daemon --info --console=plain > build.log 2>&1
+          ./gradlew :app:bundleRelease :app:assembleRelease --no-daemon --info --console=plain > build.log 2>&1
           RC=$?
           kill $MON 2>/dev/null
           if [ $RC -ne 0 ]; then
@@ -65,8 +65,14 @@ jobs:
           tail -35 build.log
           exit $RC
 
-      - name: Upload APK
+      - name: Upload AAB (Play Store)
+        uses: actions/upload-artifact@v4
+        with:
+          name: file-master-aab
+          path: file_master/build/app/outputs/bundle/release/app-release.aab
+
+      - name: Upload APK (direct install)
         uses: actions/upload-artifact@v4
         with:
           name: file-master-apk
-          path: file_master/build/app/outputs/flutter-apk/app-debug.apk
+          path: file_master/build/app/outputs/flutter-apk/app-release.apk

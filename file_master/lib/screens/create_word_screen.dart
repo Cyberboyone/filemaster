@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
+import '../services/ad_interstitial.dart';
 import '../utils/doc_format.dart';
 import '../utils/docx_builder.dart';
 import '../utils/output_utils.dart';
@@ -106,8 +107,13 @@ class _CreateWordScreenState extends ConsumerState<CreateWordScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Word document created — opening…')),
       );
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
+      AdInterstitial.instance.show(
+        onDone: () {
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
+          );
+        },
       );
     } catch (error) {
       if (!mounted) return;

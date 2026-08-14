@@ -9,6 +9,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
+import '../services/ad_interstitial.dart';
 import '../utils/doc_format.dart';
 import '../utils/office_utils.dart';
 import '../utils/output_utils.dart';
@@ -201,8 +202,13 @@ class _ConvertScreenState extends ConsumerState<ConvertScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$message — opening…')),
     );
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
+    AdInterstitial.instance.show(
+      onDone: () {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
+        );
+      },
     );
   }
 

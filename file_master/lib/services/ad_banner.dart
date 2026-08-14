@@ -3,7 +3,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 /// Banner ad shown above the bottom navigation bar.
 ///
-/// Uses the real AdMob banner ad unit for File Master.
+/// Uses Google test banner ID in development.
+/// TODO: Switch to production ID 'ca-app-pub-9529770421530115/1726896626' before release.
 class AdBanner extends StatefulWidget {
   const AdBanner({super.key});
 
@@ -12,7 +13,7 @@ class AdBanner extends StatefulWidget {
 }
 
 class _AdBannerState extends State<AdBanner> {
-  static const _bannerAdUnitId = 'ca-app-pub-9529770421530115/1726896626';
+  static const _bannerAdUnitId = 'ca-app-pub-3940256099942544/6300978111';
 
   BannerAd? _ad;
   bool _loaded = false;

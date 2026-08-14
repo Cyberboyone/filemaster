@@ -47,7 +47,8 @@ app.*.map.json
 **/build/
 android/.gradle/
 android/local.properties
-key.properties
+# upload-keystore.jks and key.properties are kept in repo for CI signing.
+# Change the passwords before publishing to Play Store if the repo is public.
 
 *.hprof
 

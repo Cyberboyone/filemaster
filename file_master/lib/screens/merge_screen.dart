@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
+import '../services/ad_interstitial.dart';
 import '../utils/doc_format.dart';
 import '../utils/output_utils.dart';
 import '../utils/pdf_builder.dart';
@@ -70,8 +71,13 @@ class _MergePdfScreenState extends ConsumerState<MergePdfScreen> {
           content: Text('Merged ${_paths.length} files into one PDF — opening…'),
         ),
       );
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
+      AdInterstitial.instance.show(
+        onDone: () {
+          if (!mounted) return;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => ViewerScreen(file: recent)),
+          );
+        },
       );
     } catch (error) {
       if (!mounted) return;
