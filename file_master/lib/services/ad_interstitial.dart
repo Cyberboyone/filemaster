@@ -7,13 +7,12 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 /// ad is ready when needed. Call [show] after a completed action; if the ad
 /// isn't loaded yet, the [onDone] callback fires immediately.
 ///
-/// TODO: Replace test ID with production ID 'ca-app-pub-9529770421530115/6030651876' before release.
 class AdInterstitial {
   AdInterstitial._();
 
   static final AdInterstitial instance = AdInterstitial._();
 
-  static const _testAdUnitId = 'ca-app-pub-3940256099942544/1033173712';
+  static const _adUnitId = 'ca-app-pub-9529770421530115/6030651876';
 
   InterstitialAd? _ad;
   bool _isLoading = false;
@@ -23,7 +22,7 @@ class AdInterstitial {
     if (_ad != null || _isLoading) return;
     _isLoading = true;
     InterstitialAd.load(
-      adUnitId: _testAdUnitId,
+      adUnitId: _adUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {

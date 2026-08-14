@@ -175,7 +175,7 @@ String _documentXml() {
   blank();
   para('If you have any questions about this Privacy Policy, please contact us:');
   blank();
-  para('Email: filemaster.app@gmail.com');
+  para('Email: muhammadmusab372@gmail.com');
   blank();
 
   // end document
