@@ -49,7 +49,7 @@ class _AdBannerState extends State<AdBanner> {
     // matrix" and blanks the surrounding UI on some devices.
     return Container(
       width: double.infinity,
-      height: ad.size.height,
+      height: ad.size.height.toDouble(),
       color: Theme.of(context).colorScheme.surface,
       child: AdWidget(ad: ad),
     );
