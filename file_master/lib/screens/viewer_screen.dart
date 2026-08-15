@@ -179,8 +179,14 @@ class _PdfViewerState extends State<_PdfViewer> {
   int _current = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_updateCurrent);
+  }
+
+  @override
   void dispose() {
-    _controller.dispose();
+    _scrollController.dispose();
     for (final image in _images.values) {
       image.dispose();
     }
@@ -228,6 +234,7 @@ class _PdfViewerState extends State<_PdfViewer> {
           if (cached != null && cached != ready) cached.dispose();
         }
       });
+      _updateCurrent();
     } catch (_) {
       // Unreadable page: keep the placeholder.
     } finally {
@@ -245,6 +252,34 @@ class _PdfViewerState extends State<_PdfViewer> {
       _order.clear();
       _aspects.clear();
     });
+  }
+
+  double _itemHeight(int index) {
+    final aspect = _aspects[index];
+    final pageHeight = aspect != null
+        ? (_viewportWidth * _zoom) / aspect
+        : _viewportWidth * _zoom * 1.414;
+    return pageHeight + _pageGap;
+  }
+
+  void _updateCurrent() {
+    if (!_scrollController.hasClients || _pageCount == 0) return;
+    final offset = _scrollController.offset;
+    double acc = 0;
+    var idx = 0;
+    for (var i = 0; i < _pageCount; i++) {
+      final h = _itemHeight(i);
+      if (acc + h * 0.5 >= offset) {
+        idx = i;
+        break;
+      }
+      acc += h;
+      idx = i;
+    }
+    if (idx != _current) {
+      _current = idx;
+      if (mounted) setState(() {});
+    }
   }
 
   Widget _buildPage(int index, double viewportWidth) {
@@ -322,28 +357,25 @@ class _PdfViewerState extends State<_PdfViewer> {
         return LayoutBuilder(
           builder: (context, constraints) {
             final viewportWidth = constraints.maxWidth;
+            _viewportWidth = viewportWidth;
+            _pageCount = pages;
             return Column(
               children: [
                 Expanded(
-                  child: PageView.builder(
-                    controller: _controller,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    cacheExtent: 800,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: pages,
-                    onPageChanged: (index) {
-                      setState(() => _current = index);
-                      for (var distance = 1; distance <= 2; distance++) {
-                        final next = index + distance;
-                        final prev = index - distance;
-                        if (next < pages) _renderPage(next, viewportWidth);
-                        if (prev >= 0) _renderPage(prev, viewportWidth);
-                      }
-                    },
                     itemBuilder: (context, index) {
-                      if (_images.containsKey(index) ||
-                          _rendering.contains(index)) {
-                        return _buildPage(index, viewportWidth);
+                      if (!_images.containsKey(index) &&
+                          !_rendering.contains(index)) {
+                        _renderPage(index, viewportWidth);
                       }
-                      _renderPage(index, viewportWidth);
-                      return _buildPage(index, viewportWidth);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: _pageGap),
+                        child: _buildPage(index, viewportWidth),
+                      );
                     },
                   ),
                 ),
