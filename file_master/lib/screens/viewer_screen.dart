@@ -367,7 +367,7 @@ class _PdfViewerState extends State<_PdfViewer> {
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    scrollCacheExtent: 800,
+                    scrollCacheExtent: ScrollCacheExtent.pixels(800),
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: pages,
                     itemBuilder: (context, index) {
