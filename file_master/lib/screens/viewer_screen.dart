@@ -156,7 +156,10 @@ class _PdfViewer extends StatefulWidget {
 /// files and low-end devices).
 class _PdfViewerState extends State<_PdfViewer> {
   late final Future<PdfDocument> _document = PdfDocument.openFile(widget.path);
-  final PageController _controller = PageController();
+  final ScrollController _scrollController = ScrollController();
+  double _viewportWidth = 0;
+  int _pageCount = 0;
+  static const double _pageGap = 12;
 
   /// Rendered page images, evicted oldest-first.
   final Map<int, ui.Image> _images = {};
@@ -364,7 +367,7 @@ class _PdfViewerState extends State<_PdfViewer> {
                 Expanded(
                   child: ListView.builder(
                     controller: _scrollController,
-                    cacheExtent: 800,
+                    scrollCacheExtent: 800,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: pages,
                     itemBuilder: (context, index) {
