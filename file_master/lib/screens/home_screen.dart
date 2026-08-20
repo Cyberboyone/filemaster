@@ -11,6 +11,7 @@ import '../providers/recents_provider.dart';
 import '../providers/selection_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ad_banner.dart';
+import '../services/ad_interstitial.dart';
 import '../utils/doc_format.dart';
 import '../utils/pdf_page_counter.dart';
 import '../widgets/message_view.dart';
@@ -33,6 +34,22 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tabIndex = 0;
+
+  // Show the app-open interstitial only once per app process.
+  static bool _appOpenAdShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_appOpenAdShown) {
+      _appOpenAdShown = true;
+      // Give the UI a beat to settle before the full-screen ad appears.
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
+        AdInterstitial.instance.showAppOpen(onDone: () {});
+      });
+    }
+  }
 
   Future<void> _pickAndRecord() async {
     final picked = await FilePicker.pickFile();

@@ -13,7 +13,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   unawaited(MobileAds.instance.initialize());
-  AdInterstitial.instance.preload();
+  AdInterstitial.instance.startConnectivityAwarePreload();
   runApp(
     ProviderScope(
       overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
