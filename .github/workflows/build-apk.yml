@@ -33,16 +33,11 @@ jobs:
         working-directory: file_master
         run: flutter test
 
-      - name: Diagnostic - runner memory and Gradle JVM args
+      - name: Show version from pubspec
+        working-directory: file_master
         run: |
-          set +e
-          echo "::warning::RAM=$(free -h | awk '/Mem:/{print $2" total, "$7" avail"}' | tr -d '\n') CPUS=$(nproc)"
-          echo "=== gradle.properties ==="
-          cat file_master/android/gradle.properties
-          cd file_master/android
-          ARGS=$(./gradlew help --info --no-daemon 2>&1 | grep -iE "xmx|metaspace|jvm arguments" | head -6 | tr '\n' ' | ')
-          echo "::warning::DAEMON_ARGS = $ARGS"
-          true
+          VER=$(grep -E '^version:' pubspec.yaml | awk '{print $2}')
+          echo "::warning::Building version $VER  (name=${VER%%+*}  code=${VER##*+})"
 
       - name: Build release AAB and APK
         working-directory: file_master
@@ -51,19 +46,34 @@ jobs:
           JAVA_OPTS: "-Xmx8G -XX:MaxMetaspaceSize=2G"
         run: |
           set +e
-          (while true; do echo "$(date +%T) $(free -m | awk '/Mem:/{print $2"MB total "$7"MB avail"}')" >> mem_trace.log; sleep 10; done) &
+          (while true; do echo "$(date +%T) $(free -m | awk '/Mem:/{print $2\"MB total \"$7\"MB avail\"}')" >> mem_trace.log; sleep 10; done) &
           MON=$!
-          cd android
-          ./gradlew :app:bundleRelease :app:assembleRelease --no-daemon --info --console=plain > build.log 2>&1
+          flutter build appbundle --release > build.log 2>&1
           RC=$?
+          if [ $RC -eq 0 ]; then
+            flutter build apk --release >> build.log 2>&1
+            RC=$?
+          fi
           kill $MON 2>/dev/null
           if [ $RC -ne 0 ]; then
             echo "::error::MEM_TRACE = $(tr '\n' ' | ' < mem_trace.log)"
-            echo "::error::DAEMON_ARGS = $(grep -oE '\-Xmx[0-9a-zA-Z]+' build.log | sort -u | tr '\n' ' ')"
-            echo "::error::BUILD_TAIL = $(tail -10 build.log | tr '\n' ' | ')"
+            echo "::error::BUILD_TAIL = $(tail -15 build.log | tr '\n' ' | ')"
           fi
           tail -35 build.log
           exit $RC
+
+      - name: Verify versionCode in AAB
+        working-directory: file_master
+        run: |
+          AAB=build/app/outputs/bundle/release/app-release.aab
+          BT=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)
+          if [ -z "$BT" ]; then echo "aapt2 not found, skipping"; exit 0; fi
+          CODE=$("$BT" dump badging "$AAB" 2>/dev/null | grep -oE "versionCode='[0-9]+'" | grep -oE "[0-9]+" | head -1)
+          echo "::warning::AAB versionCode = $CODE"
+          if [ "$CODE" = "1" ] || [ -z "$CODE" ]; then
+            echo "::error::versionCode is $CODE — version was not injected. Aborting."
+            exit 1
+          fi
 
       - name: Upload AAB (Play Store)
         uses: actions/upload-artifact@v4
