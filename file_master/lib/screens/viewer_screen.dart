@@ -735,6 +735,7 @@ class _DocxViewerState extends State<_DocxViewer> {
   Future<void> _edit() async {
     if (!mounted) return;
     final text = await _content;
+    if (!mounted) return;
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => _DocxEditorPage(
