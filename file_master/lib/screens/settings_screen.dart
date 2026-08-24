@@ -9,7 +9,6 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(settingsControllerProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
@@ -17,14 +16,30 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           _SectionCard(
             children: [
-              SwitchListTile(
-                secondary: const Icon(Icons.dark_mode_outlined),
-                title: const Text('Dark mode'),
-                subtitle: const Text('Persisted on this device'),
-                value: settings.darkMode,
-                onChanged: (value) => ref
-                    .read(settingsControllerProvider.notifier)
-                    .setDarkMode(value),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 14, 16, 4),
+                child: Text(
+                  'Theme',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              _ThemeOption(
+                preference: ThemePreference.auto,
+                title: 'Automatic',
+                subtitle: 'Light by day, dark by night (device time)',
+                icon: Icons.brightness_auto,
+              ),
+              _ThemeOption(
+                preference: ThemePreference.light,
+                title: 'Light',
+                subtitle: 'Always light',
+                icon: Icons.light_mode_outlined,
+              ),
+              _ThemeOption(
+                preference: ThemePreference.dark,
+                title: 'Dark',
+                subtitle: 'Always dark',
+                icon: Icons.dark_mode_outlined,
               ),
             ],
           ),
@@ -51,7 +66,7 @@ class SettingsScreen extends ConsumerWidget {
           const AboutListTile(
             icon: Icon(Icons.info_outline),
             applicationName: 'File Master',
-            applicationVersion: '1.0.2',
+            applicationVersion: '1.0.3',
             applicationLegalese: 'Free document utility. Works fully offline.',
             aboutBoxChildren: [
               Text('File Master is a free, ad-supported document utility.'),
@@ -61,6 +76,43 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ThemeOption extends ConsumerWidget {
+  const _ThemeOption({
+    required this.preference,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  });
+
+  final ThemePreference preference;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected =
+        ref.watch(settingsControllerProvider).preference == preference;
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Icon(
+        selected
+            ? Icons.radio_button_checked
+            : Icons.radio_button_unchecked,
+        color: selected
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.outline,
+      ),
+      onTap: () =>
+          ref.read(settingsControllerProvider.notifier).setPreference(
+                preference,
+              ),
     );
   }
 }

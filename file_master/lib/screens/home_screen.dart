@@ -182,19 +182,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         actions: [
           Consumer(
             builder: (context, ref, _) {
-              final settings = ref.watch(settingsControllerProvider);
-              return IconButton(
-                tooltip: settings.darkMode
-                    ? 'Switch to light'
-                    : 'Switch to dark',
-                icon: Icon(
-                  settings.darkMode
-                      ? Icons.light_mode_outlined
-                      : Icons.dark_mode_outlined,
+              final preference = ref.watch(
+                settingsControllerProvider,
+              ).preference;
+              final (icon, tooltip) = switch (preference) {
+                ThemePreference.auto => (
+                  Icons.brightness_auto,
+                  'Automatic theme',
                 ),
+                ThemePreference.light => (
+                  Icons.light_mode_outlined,
+                  'Light theme',
+                ),
+                ThemePreference.dark => (Icons.dark_mode_outlined, 'Dark theme'),
+              };
+              return IconButton(
+                tooltip: '$tooltip (tap to change)',
+                icon: Icon(icon),
                 onPressed: () => ref
                     .read(settingsControllerProvider.notifier)
-                    .toggleDarkMode(),
+                    .cycleTheme(),
               );
             },
           ),

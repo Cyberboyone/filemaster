@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/recent_file.dart';
 import '../utils/doc_format.dart';
+import '../utils/docx_builder.dart';
 import '../utils/office_utils.dart';
 import '../utils/output_utils.dart';
 import '../utils/pdf_builder.dart';
@@ -712,13 +713,38 @@ class _DocxViewer extends StatefulWidget {
 }
 
 class _DocxViewerState extends State<_DocxViewer> {
-  late final Future<String> _content = _extract();
+  late Future<String> _content;
+
+  @override
+  void initState() {
+    super.initState();
+    _content = _extract();
+  }
 
   Future<String> _extract() async {
     final text = await extractOfficeText(widget.file.path);
     return text.trim().isEmpty
         ? '(No readable text found in this file.)'
         : text;
+  }
+
+  void _reload() {
+    if (mounted) setState(() => _content = _extract());
+  }
+
+  Future<void> _edit() async {
+    if (!mounted) return;
+    final text = await _content;
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _DocxEditorPage(
+          filePath: widget.file.path,
+          title: widget.file.name,
+          initialContent: text,
+        ),
+      ),
+    );
+    if (saved == true) _reload();
   }
 
   Future<void> _convertToPdf() async {
@@ -753,6 +779,11 @@ class _DocxViewerState extends State<_DocxViewer> {
         _ToolsBar(
           tools: [
             _ToolItem(
+              icon: Icons.edit_outlined,
+              label: 'Edit',
+              onTap: _edit,
+            ),
+            _ToolItem(
               icon: Icons.picture_as_pdf_outlined,
               label: 'Convert',
               onTap: _convertToPdf,
@@ -760,6 +791,95 @@ class _DocxViewerState extends State<_DocxViewer> {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _DocxEditorPage extends StatefulWidget {
+  const _DocxEditorPage({
+    required this.filePath,
+    required this.title,
+    required this.initialContent,
+  });
+
+  final String filePath;
+  final String title;
+  final String initialContent;
+
+  @override
+  State<_DocxEditorPage> createState() => _DocxEditorPageState();
+}
+
+class _DocxEditorPageState extends State<_DocxEditorPage> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialContent,
+  );
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      final bytes = await buildDocx(
+        title: widget.title,
+        content: _controller.text,
+      );
+      await File(widget.filePath).writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Edit document'),
+        actions: [
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              tooltip: 'Save',
+              icon: const Icon(Icons.check),
+              onPressed: _save,
+            ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: TextField(
+          controller: _controller,
+          maxLines: null,
+          expands: true,
+          autofocus: true,
+          keyboardType: TextInputType.multiline,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: 'Type your text...',
+          ),
+        ),
+      ),
     );
   }
 }
