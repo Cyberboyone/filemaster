@@ -70,7 +70,12 @@ void _openSharedFile(Map<String, dynamic> map) {
   if (path == null || path.isEmpty) return;
   final file = File(path);
   if (!file.existsSync()) return;
-  final name = (map['name'] as String?) ?? p.basename(path);
+  var name = (map['name'] as String?) ?? p.basename(path);
+  final mime = (map['mime'] as String?) ?? '';
+  if (!name.contains('.') && mime.isNotEmpty) {
+    final ext = _extensionFromMime(mime);
+    if (ext != null) name = '$name.$ext';
+  }
   final recent = RecentFile(
     name: name,
     path: path,
@@ -82,6 +87,40 @@ void _openSharedFile(Map<String, dynamic> map) {
     appContainer.read(recentsControllerProvider.notifier).recordOpen(recent),
   );
   _navigateToShared(recent);
+}
+
+/// Best-effort map from a mime type to a file extension, mirroring the native
+/// side, so format detection works even if the shared file has no extension.
+String? _extensionFromMime(String mime) {
+  const map = <String, String>{
+    'application/pdf': 'pdf',
+    'application/msword': 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        'docx',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.ms-powerpoint': 'ppt',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+        'pptx',
+    'application/rtf': 'rtf',
+    'application/vnd.oasis.opendocument.text': 'odt',
+    'application/vnd.oasis.opendocument.spreadsheet': 'ods',
+    'application/vnd.oasis.opendocument.presentation': 'odp',
+    'text/plain': 'txt',
+    'text/csv': 'csv',
+    'application/zip': 'zip',
+    'application/x-rar-compressed': 'rar',
+    'application/x-7z-compressed': '7z',
+    'application/gzip': 'gz',
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/gif': 'gif',
+    'image/bmp': 'bmp',
+    'image/webp': 'webp',
+    'image/heic': 'heic',
+    'image/tiff': 'tiff',
+  };
+  return map[mime];
 }
 
 int _pendingNavigations = 0;
