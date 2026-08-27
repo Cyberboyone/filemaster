@@ -104,16 +104,18 @@ void main() {
         ),
       );
 
+      const message =
+          'Preview for PowerPoint files is not available. '
+          'Use Share to open it in another app.';
       var attempts = 0;
-      while (find.text('Could not open this file').evaluate().isEmpty &&
-          attempts < 750) {
+      while (find.text(message).evaluate().isEmpty && attempts < 750) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
         await tester.pump();
         attempts++;
       }
 
-      expect(find.text('Could not open this file'), findsOneWidget);
-      expect(find.text('Save as PDF'), findsNothing);
+      expect(find.text(message), findsOneWidget);
+      expect(find.text('Convert'), findsNothing);
     });
   });
 
@@ -147,16 +149,18 @@ void main() {
         ),
       );
 
+      const message =
+          'Preview for PowerPoint files is not available. '
+          'Use Share to open it in another app.';
       var attempts = 0;
-      while (find.text('Save as PDF').evaluate().isEmpty && attempts < 750) {
+      while (find.text(message).evaluate().isEmpty && attempts < 750) {
         await Future<void>.delayed(const Duration(milliseconds: 20));
         await tester.pump();
         attempts++;
       }
 
-      expect(find.textContaining('No readable text'), findsOneWidget);
-      expect(find.text('Convert'), findsOneWidget);
-      expect(find.text('Save as PDF'), findsNothing);
+      expect(find.text(message), findsOneWidget);
+      expect(find.text('Convert'), findsNothing);
     });
   });
 
@@ -197,7 +201,7 @@ void main() {
       }
 
       expect(find.textContaining('Hello from a docx'), findsOneWidget);
-      expect(find.text('Convert'), findsOneWidget);
+      expect(find.text('Share'), findsOneWidget);
       expect(find.text('Save as PDF'), findsNothing);
     });
   });
