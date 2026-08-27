@@ -500,12 +500,6 @@ class _TextViewerState extends State<_TextViewer> {
     super.dispose();
   }
 
-  void _reload() {
-    setState(() {
-      _load = _read();
-    });
-  }
-
   Future<_TextResult> _read() async {
     final file = File(widget.path);
     final length = await file.length();
@@ -715,10 +709,6 @@ class _DocxViewerState extends State<_DocxViewer> {
     return text.trim().isEmpty
         ? '(No readable text found in this file.)'
         : text;
-  }
-
-  void _reload() {
-    if (mounted) setState(() => _content = _extract());
   }
 
   Future<void> _convertToPdf() async {
