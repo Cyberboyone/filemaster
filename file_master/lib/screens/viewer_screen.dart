@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -723,6 +722,7 @@ class _DocxViewerState extends State<_DocxViewer> {
     final fileName = '${baseName}_converted.pdf';
     try {
       final content = await _content;
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Converting to PDF…')));
@@ -800,6 +800,7 @@ class _ExcelViewerState extends State<_ExcelViewer> {
         buffer.writeln();
       }
       final content = buffer.toString();
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Converting to PDF…')));
@@ -1066,6 +1067,7 @@ class _PptxViewerState extends State<_PptxViewer> {
         buffer.writeln();
       }
       final content = buffer.toString();
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Converting to PDF…')));
