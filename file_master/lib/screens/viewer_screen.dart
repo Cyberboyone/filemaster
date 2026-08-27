@@ -384,12 +384,21 @@ class _PdfViewerState extends State<_PdfViewer> {
                 ),
                 Material(
                   color: scheme.surfaceContainerLow,
+                  elevation: 3,
                   child: SafeArea(
                     top: false,
-                    child: Padding(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(
+                            color: scheme.outlineVariant.withValues(alpha: 0.6),
+                            width: 1,
+                          ),
+                        ),
+                      ),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
-                        vertical: 2,
+                        vertical: 4,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1217,29 +1226,23 @@ class _ToolsBar extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       color: scheme.surfaceContainerLow,
+      elevation: 3,
       child: SafeArea(
         top: false,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
             border: Border(
               top: BorderSide(
-                color: scheme.outlineVariant.withValues(alpha: 0.4),
+                color: scheme.outlineVariant.withValues(alpha: 0.6),
+                width: 1,
               ),
             ),
           ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final tool in tools)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: _ToolButton(item: tool),
-                  ),
-              ],
-            ),
+          child: Row(
+            children: [
+              for (final tool in tools)
+                Expanded(child: _ToolButton(item: tool)),
+            ],
           ),
         ),
       ),
@@ -1256,25 +1259,25 @@ class _ToolButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.secondaryContainer,
-      borderRadius: BorderRadius.circular(14),
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
         onTap: item.onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+        child: SizedBox(
+          height: 60,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(item.icon, size: 22, color: scheme.onSecondaryContainer),
-              const SizedBox(height: 2),
+              Icon(item.icon, size: 22, color: scheme.primary),
+              const SizedBox(height: 6),
               Text(
                 item.label,
                 maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: scheme.onSecondaryContainer,
+                  letterSpacing: 0.2,
+                  color: scheme.onSurface,
                 ),
               ),
             ],
