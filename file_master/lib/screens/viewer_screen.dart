@@ -652,9 +652,12 @@ class _TextViewerState extends State<_TextViewer> {
     final baseName = sanitizeFileName(p.basenameWithoutExtension(widget.path));
     final fileName = '${baseName}_converted.pdf';
     try {
-      final bytes = await buildTextPdf(
-        title: p.basename(widget.path),
-        content: content,
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Converting to PDF…')));
+      final bytes = await compute(
+        _buildTextPdfInBackground,
+        {'title': p.basename(widget.path), 'content': content},
       );
       final file = await saveOutput(bytes, fileName);
       if (!mounted) return;
@@ -718,9 +721,12 @@ class _DocxViewerState extends State<_DocxViewer> {
     final fileName = '${baseName}_converted.pdf';
     try {
       final content = await _content;
-      final bytes = await buildTextPdf(
-        title: p.basename(widget.file.path),
-        content: content,
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Converting to PDF…')));
+      final bytes = await compute(
+        _buildTextPdfInBackground,
+        {'title': p.basename(widget.file.path), 'content': content},
       );
       final file = await saveOutput(bytes, fileName);
       if (!mounted) return;
@@ -792,9 +798,12 @@ class _ExcelViewerState extends State<_ExcelViewer> {
         buffer.writeln();
       }
       final content = buffer.toString();
-      final bytes = await buildTextPdf(
-        title: p.basename(widget.file.path),
-        content: content,
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Converting to PDF…')));
+      final bytes = await compute(
+        _buildTextPdfInBackground,
+        {'title': p.basename(widget.file.path), 'content': content},
       );
       final file = await saveOutput(bytes, fileName);
       if (!mounted) return;
@@ -1055,9 +1064,12 @@ class _PptxViewerState extends State<_PptxViewer> {
         buffer.writeln();
       }
       final content = buffer.toString();
-      final bytes = await buildTextPdf(
-        title: p.basename(widget.file.path),
-        content: content,
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Converting to PDF…')));
+      final bytes = await compute(
+        _buildTextPdfInBackground,
+        {'title': p.basename(widget.file.path), 'content': content},
       );
       final file = await saveOutput(bytes, fileName);
       if (!mounted) return;
@@ -1346,3 +1358,9 @@ class _CenterMessage extends StatelessWidget {
     );
   }
 }
+
+/// Runs [buildTextPdf] on a background isolate so the UI thread stays free
+/// (building a large document on the main thread froze the app / triggered an
+/// ANR). Must be top-level so it can be sent to the isolate via [compute].
+Future<Uint8List> _buildTextPdfInBackground(Map<String, dynamic> args) =>
+    buildTextPdf(title: args['title'] as String, content: args['content'] as String);
