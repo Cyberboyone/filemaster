@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/recent_file.dart';
 import '../utils/doc_format.dart';
+import '../utils/docx_builder.dart';
 import '../utils/office_utils.dart';
 import '../utils/output_utils.dart';
 import '../utils/pdf_builder.dart';
@@ -701,6 +702,9 @@ class _DocxViewer extends StatefulWidget {
 
 class _DocxViewerState extends State<_DocxViewer> {
   late Future<String> _content;
+  bool _editing = false;
+  final TextEditingController _controller = TextEditingController();
+  Key _docKey = UniqueKey();
 
   @override
   void initState() {
@@ -708,11 +712,48 @@ class _DocxViewerState extends State<_DocxViewer> {
     _content = _extract();
   }
 
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
   Future<String> _extract() async {
     final text = await extractOfficeText(widget.file.path);
     return text.trim().isEmpty
         ? '(No readable text found in this file.)'
         : text;
+  }
+
+  Future<void> _enterEdit(String text) async {
+    _controller.text = text;
+    if (!mounted) return;
+    setState(() => _editing = true);
+  }
+
+  Future<void> _save() async {
+    try {
+      final bytes = await buildDocx(
+        title: p.basename(widget.file.path),
+        content: _controller.text,
+      );
+      final file = File(widget.file.path);
+      await file.writeAsBytes(bytes, flush: true);
+      if (!mounted) return;
+      setState(() {
+        _editing = false;
+        _docKey = UniqueKey();
+        _content = _extract();
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
+    }
   }
 
   Future<void> _convertToPdf() async {
@@ -745,11 +786,53 @@ class _DocxViewerState extends State<_DocxViewer> {
 
   @override
   Widget build(BuildContext context) {
+    if (_editing) {
+      return Column(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              maxLines: null,
+              expands: true,
+              autofocus: true,
+              keyboardType: TextInputType.multiline,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Type your text...',
+                contentPadding: EdgeInsets.all(12),
+              ),
+            ),
+          ),
+          _ToolsBar(
+            tools: [
+              _ToolItem(
+                icon: Icons.close,
+                label: 'Cancel',
+                onTap: () {
+                  if (!mounted) return;
+                  setState(() => _editing = false);
+                },
+              ),
+              _ToolItem(icon: Icons.check, label: 'Save', onTap: _save),
+            ],
+          ),
+        ],
+      );
+    }
     return Column(
       children: [
-        Expanded(child: DocxDocumentView(path: widget.file.path)),
+        Expanded(child: DocxDocumentView(key: _docKey, path: widget.file.path)),
         _ToolsBar(
           tools: [
+            _ToolItem(
+              icon: Icons.edit_outlined,
+              label: 'Edit',
+              onTap: () async {
+                final text = await _content;
+                if (!mounted) return;
+                _enterEdit(text);
+              },
+            ),
             _ToolItem(
               icon: Icons.picture_as_pdf_outlined,
               label: 'Convert',
