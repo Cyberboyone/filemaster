@@ -40,10 +40,7 @@ class _ConvertScreenState extends ConsumerState<ConvertScreen> {
     'md',
     'log',
     'json',
-    'csv',
     'docx',
-    'xlsx',
-    'pptx',
   ];
 
   Future<void> _toPdf() async {
