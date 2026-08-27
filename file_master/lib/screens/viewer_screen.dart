@@ -574,54 +574,34 @@ class _TextViewerState extends State<_TextViewer> {
             ],
           );
         }
-        return Column(
-          children: [
-            Expanded(
-              child: SelectionArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (result.truncated)
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: scheme.tertiaryContainer,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            'Showing the first $_maxChars characters '
-                            '(${result.totalBytes ~/ 1024} KB total).',
-                            style: TextStyle(color: scheme.onTertiaryContainer),
-                          ),
-                        ),
-                      Text(
-                        result.content,
-                        style: const TextStyle(fontSize: 15, height: 1.4),
-                      ),
-                    ],
+        return SelectionArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (result.truncated)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: scheme.tertiaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Showing the first $_maxChars characters '
+                      '(${result.totalBytes ~/ 1024} KB total).',
+                      style: TextStyle(color: scheme.onTertiaryContainer),
+                    ),
                   ),
-                ),
-              ),
-            ),
-            _ToolsBar(
-              tools: [
-                _ToolItem(
-                  icon: Icons.edit_outlined,
-                  label: 'Edit',
-                  onTap: () => _enterEdit(result.content),
-                ),
-                _ToolItem(
-                  icon: Icons.share_outlined,
-                  label: 'Share',
-                  onTap: () => _shareFile(widget.path),
+                Text(
+                  result.content,
+                  style: const TextStyle(fontSize: 15, height: 1.4),
                 ),
               ],
             ),
-          ],
+          ),
         );
       },
     );
@@ -656,20 +636,7 @@ class _DocxViewer extends StatefulWidget {
 class _DocxViewerState extends State<_DocxViewer> {
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(child: DocxDocumentView(path: widget.file.path)),
-        _ToolsBar(
-          tools: [
-            _ToolItem(
-              icon: Icons.share_outlined,
-              label: 'Share',
-              onTap: () => _shareFile(widget.file.path),
-            ),
-          ],
-        ),
-      ],
-    );
+    return DocxDocumentView(path: widget.file.path);
   }
 }
 
@@ -816,12 +783,4 @@ class _CenterMessage extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Shares a file via the system share sheet. Used by the viewer action bars
-/// now that Convert lives in the dedicated Convert screen.
-Future<void> _shareFile(String path) async {
-  final file = File(path);
-  if (!file.existsSync()) return;
-  await SharePlus.instance.share(ShareParams(files: [XFile(path)]));
 }

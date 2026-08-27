@@ -201,7 +201,6 @@ void main() {
       }
 
       expect(find.textContaining('Hello from a docx'), findsOneWidget);
-      expect(find.text('Share'), findsOneWidget);
       expect(find.text('Save as PDF'), findsNothing);
     });
   });
