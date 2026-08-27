@@ -11,7 +11,6 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/recent_file.dart';
 import '../utils/doc_format.dart';
-import '../utils/docx_builder.dart';
 import '../utils/office_utils.dart';
 import '../utils/output_utils.dart';
 import '../utils/pdf_builder.dart';
@@ -483,6 +482,14 @@ class _TextViewerState extends State<_TextViewer> {
   static const int _maxChars = 2 * 1024 * 1024;
 
   late Future<_TextResult> _load = _read();
+  bool _editing = false;
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   void _reload() {
     setState(() {
@@ -504,6 +511,34 @@ class _TextViewerState extends State<_TextViewer> {
     return _TextResult(content: content, truncated: false, totalBytes: length);
   }
 
+  void _enterEdit(String content) {
+    _controller.text = content;
+    setState(() => _editing = true);
+  }
+
+  Future<void> _saveEdit() async {
+    try {
+      await File(widget.path).writeAsString(_controller.text, flush: true);
+      if (!mounted) return;
+      setState(() {
+        _editing = false;
+        _load = _read();
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saved')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
+    }
+  }
+
+  void _cancelEdit() {
+    setState(() => _editing = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -521,6 +556,42 @@ class _TextViewerState extends State<_TextViewer> {
           );
         }
         final result = snapshot.data!;
+        if (_editing) {
+          // Inline editing: the text area replaces the read-only view and the
+          // bottom bar switches to Save / Cancel. No separate screen.
+          return Column(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  maxLines: null,
+                  expands: true,
+                  autofocus: true,
+                  keyboardType: TextInputType.multiline,
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.all(20),
+                    hintText: 'Type your text...',
+                  ),
+                ),
+              ),
+              _ToolsBar(
+                tools: [
+                  _ToolItem(
+                    icon: Icons.check,
+                    label: 'Save',
+                    onTap: _saveEdit,
+                  ),
+                  _ToolItem(
+                    icon: Icons.close,
+                    label: 'Cancel',
+                    onTap: _cancelEdit,
+                  ),
+                ],
+              ),
+            ],
+          );
+        }
         return Column(
           children: [
             Expanded(
@@ -559,7 +630,7 @@ class _TextViewerState extends State<_TextViewer> {
                 _ToolItem(
                   icon: Icons.edit_outlined,
                   label: 'Edit',
-                  onTap: () => _edit(result.content),
+                  onTap: () => _enterEdit(result.content),
                 ),
                 _ToolItem(
                   icon: Icons.picture_as_pdf_outlined,
@@ -572,17 +643,6 @@ class _TextViewerState extends State<_TextViewer> {
         );
       },
     );
-  }
-
-  Future<void> _edit(String content) async {
-    if (!mounted) return;
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) =>
-            _TextEditorPage(filePath: widget.path, initialContent: content),
-      ),
-    );
-    if (saved == true) _reload();
   }
 
   Future<void> _convertToPdf(String content) async {
@@ -604,86 +664,6 @@ class _TextViewerState extends State<_TextViewer> {
         context,
       ).showSnackBar(SnackBar(content: Text('Could not save PDF: $error')));
     }
-  }
-}
-
-class _TextEditorPage extends StatefulWidget {
-  const _TextEditorPage({required this.filePath, required this.initialContent});
-
-  final String filePath;
-  final String initialContent;
-
-  @override
-  State<_TextEditorPage> createState() => _TextEditorPageState();
-}
-
-class _TextEditorPageState extends State<_TextEditorPage> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initialContent,
-  );
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      await File(widget.filePath).writeAsString(_controller.text, flush: true);
-      if (!mounted) return;
-      Navigator.of(context).pop(true);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit'),
-        actions: [
-          if (_saving)
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            IconButton(
-              tooltip: 'Save',
-              icon: const Icon(Icons.check),
-              onPressed: _save,
-            ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: TextField(
-          controller: _controller,
-          maxLines: null,
-          expands: true,
-          autofocus: true,
-          keyboardType: TextInputType.multiline,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: 'Type your text...',
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -732,22 +712,6 @@ class _DocxViewerState extends State<_DocxViewer> {
     if (mounted) setState(() => _content = _extract());
   }
 
-  Future<void> _edit() async {
-    if (!mounted) return;
-    final text = await _content;
-    if (!mounted) return;
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => _DocxEditorPage(
-          filePath: widget.file.path,
-          title: widget.file.name,
-          initialContent: text,
-        ),
-      ),
-    );
-    if (saved == true) _reload();
-  }
-
   Future<void> _convertToPdf() async {
     final baseName = sanitizeFileName(
       p.basenameWithoutExtension(widget.file.path),
@@ -780,11 +744,6 @@ class _DocxViewerState extends State<_DocxViewer> {
         _ToolsBar(
           tools: [
             _ToolItem(
-              icon: Icons.edit_outlined,
-              label: 'Edit',
-              onTap: _edit,
-            ),
-            _ToolItem(
               icon: Icons.picture_as_pdf_outlined,
               label: 'Convert',
               onTap: _convertToPdf,
@@ -792,95 +751,6 @@ class _DocxViewerState extends State<_DocxViewer> {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _DocxEditorPage extends StatefulWidget {
-  const _DocxEditorPage({
-    required this.filePath,
-    required this.title,
-    required this.initialContent,
-  });
-
-  final String filePath;
-  final String title;
-  final String initialContent;
-
-  @override
-  State<_DocxEditorPage> createState() => _DocxEditorPageState();
-}
-
-class _DocxEditorPageState extends State<_DocxEditorPage> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initialContent,
-  );
-  bool _saving = false;
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      final bytes = await buildDocx(
-        title: widget.title,
-        content: _controller.text,
-      );
-      await File(widget.filePath).writeAsBytes(bytes, flush: true);
-      if (!mounted) return;
-      Navigator.of(context).pop(true);
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit document'),
-        actions: [
-          if (_saving)
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else
-            IconButton(
-              tooltip: 'Save',
-              icon: const Icon(Icons.check),
-              onPressed: _save,
-            ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: TextField(
-          controller: _controller,
-          maxLines: null,
-          expands: true,
-          autofocus: true,
-          keyboardType: TextInputType.multiline,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: 'Type your text...',
-          ),
-        ),
-      ),
     );
   }
 }
