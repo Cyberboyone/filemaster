@@ -66,7 +66,7 @@ class SettingsScreen extends ConsumerWidget {
           const AboutListTile(
             icon: Icon(Icons.info_outline),
             applicationName: 'File Master',
-            applicationVersion: '1.0.3',
+            applicationVersion: '1.0.4',
             applicationLegalese: 'Free document utility. Works fully offline.',
             aboutBoxChildren: [
               Text('File Master is a free, ad-supported document utility.'),
