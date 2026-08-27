@@ -14,7 +14,6 @@ import 'navigation.dart';
 import 'providers/recents_provider.dart';
 import 'providers/settings_provider.dart';
 import 'screens/viewer_screen.dart';
-import 'services/ad_interstitial.dart';
 import 'utils/doc_format.dart';
 
 const String kFileOpenChannel = 'com.nakudin.filemaster/file_open';
@@ -26,7 +25,6 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   unawaited(MobileAds.instance.initialize());
-  AdInterstitial.instance.startConnectivityAwarePreload();
 
   appContainer = ProviderContainer(
     overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
