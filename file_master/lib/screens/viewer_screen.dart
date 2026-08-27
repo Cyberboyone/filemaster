@@ -470,14 +470,6 @@ class _TextViewerState extends State<_TextViewer> {
   static const int _maxChars = 2 * 1024 * 1024;
 
   late Future<_TextResult> _load = _read();
-  bool _editing = false;
-  final TextEditingController _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   Future<_TextResult> _read() async {
     final file = File(widget.path);
@@ -491,34 +483,6 @@ class _TextViewerState extends State<_TextViewer> {
     }
     final content = await file.readAsString();
     return _TextResult(content: content, truncated: false, totalBytes: length);
-  }
-
-  void _enterEdit(String content) {
-    _controller.text = content;
-    setState(() => _editing = true);
-  }
-
-  Future<void> _saveEdit() async {
-    try {
-      await File(widget.path).writeAsString(_controller.text, flush: true);
-      if (!mounted) return;
-      setState(() {
-        _editing = false;
-        _load = _read();
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Saved')));
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not save: $error')));
-    }
-  }
-
-  void _cancelEdit() {
-    setState(() => _editing = false);
   }
 
   @override
@@ -538,42 +502,6 @@ class _TextViewerState extends State<_TextViewer> {
           );
         }
         final result = snapshot.data!;
-        if (_editing) {
-          // Inline editing: the text area replaces the read-only view and the
-          // bottom bar switches to Save / Cancel. No separate screen.
-          return Column(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _controller,
-                  maxLines: null,
-                  expands: true,
-                  autofocus: true,
-                  keyboardType: TextInputType.multiline,
-                  decoration: InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.all(20),
-                    hintText: 'Type your text...',
-                  ),
-                ),
-              ),
-              _ToolsBar(
-                tools: [
-                  _ToolItem(
-                    icon: Icons.check,
-                    label: 'Save',
-                    onTap: _saveEdit,
-                  ),
-                  _ToolItem(
-                    icon: Icons.close,
-                    label: 'Cancel',
-                    onTap: _cancelEdit,
-                  ),
-                ],
-              ),
-            ],
-          );
-        }
         return SelectionArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -640,93 +568,6 @@ class _DocxViewerState extends State<_DocxViewer> {
   }
 }
 
-
-/// Bottom action bar shown inside a viewer with tools for the current file
-/// type (Convert, Edit, ...).
-class _ToolsBar extends StatelessWidget {
-  const _ToolsBar({required this.tools});
-
-  final List<_ToolItem> tools;
-
-  @override
-  Widget build(BuildContext context) {
-    if (tools.isEmpty) return const SizedBox.shrink();
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerLow,
-      elevation: 3,
-      child: SafeArea(
-        top: false,
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(
-                color: scheme.outlineVariant.withValues(alpha: 0.6),
-                width: 1,
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              for (final tool in tools)
-                Expanded(child: _ToolButton(item: tool)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ToolButton extends StatelessWidget {
-  const _ToolButton({required this.item});
-
-  final _ToolItem item;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: item.onTap,
-        child: SizedBox(
-          height: 60,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(item.icon, size: 22, color: scheme.primary),
-              const SizedBox(height: 6),
-              Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                  color: scheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ToolItem {
-  const _ToolItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-}
 
 class _UnsupportedViewer extends StatelessWidget {
   const _UnsupportedViewer({
