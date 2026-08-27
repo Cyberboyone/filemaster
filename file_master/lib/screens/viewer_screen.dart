@@ -469,7 +469,7 @@ class _TextViewer extends StatefulWidget {
 class _TextViewerState extends State<_TextViewer> {
   static const int _maxChars = 2 * 1024 * 1024;
 
-  late Future<_TextResult> _load = _read();
+  final Future<_TextResult> _load = _read();
 
   Future<_TextResult> _read() async {
     final file = File(widget.path);
