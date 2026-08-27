@@ -4,7 +4,6 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 import 'package:pdfx/pdfx.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
