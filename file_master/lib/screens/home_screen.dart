@@ -10,7 +10,8 @@ import '../models/recent_file.dart';
 import '../providers/recents_provider.dart';
 import '../providers/selection_provider.dart';
 import '../providers/settings_provider.dart';
-import '../services/ad_native.dart';
+import '../services/ad_banner.dart';
+import '../services/ad_interstitial.dart';
 import '../utils/doc_format.dart';
 import '../utils/pdf_page_counter.dart';
 import '../widgets/message_view.dart';
@@ -37,6 +38,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    // Show the app-open interstitial only once per app process.
+    AdInterstitial.instance.showAppOpen(onDone: () {});
   }
 
   Future<void> _pickAndRecord() async {
@@ -211,7 +214,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 320),
-            child: const NativeAdWidget(),
+            child: const AdBanner(),
           ),
           SizedBox(
             height: 80,
