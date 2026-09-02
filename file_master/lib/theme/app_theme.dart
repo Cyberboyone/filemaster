@@ -27,6 +27,18 @@ abstract final class AppTheme {
           surfaceContainerHighest: isDark
               ? const Color(0xFF253041)
               : const Color(0xFFD2DCE8),
+          // Pin the text roles to the custom surfaces above so that text is
+          // always light-on-dark in dark mode and dark-on-light in light mode,
+          // regardless of how the seed-derived roles are computed.
+          onSurface: isDark
+              ? const Color(0xFFE6E9F0)
+              : const Color(0xFF0F172A),
+          onSurfaceVariant: isDark
+              ? const Color(0xFFA7B1BF)
+              : const Color(0xFF475569),
+          outlineVariant: isDark
+              ? const Color(0xFF303B49)
+              : const Color(0xFFCBD5E1),
         );
 
     final base = ThemeData(colorScheme: scheme, brightness: brightness);

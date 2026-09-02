@@ -329,7 +329,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen>
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            child: const Text('Delete'),
           ),
         ],
       ),
