@@ -161,14 +161,17 @@ class _PdfViewerState extends State<_PdfViewer> {
   final Map<int, double> _aspects = {};
 
   /// How much sharper than screen size pages are rendered (crisp, cheap).
-  static const double _quality = 1.5;
+  static const double _quality = 2.0;
 
   /// Maximum rendered pages kept in memory.
   static const int _maxCached = 16;
 
-  static const List<double> _zoomLevels = [1.0, 1.5, 2.0];
+  static const List<double> _zoomLevels = [1.0, 1.25, 1.5, 2.0, 3.0];
   double _zoom = 1.0;
   int _current = 0;
+
+  /// Visual pinch/zoom transform; committed to a re-render on gesture end.
+  final TransformationController _viewTransform = TransformationController();
 
   @override
   void initState() {
@@ -179,6 +182,7 @@ class _PdfViewerState extends State<_PdfViewer> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _viewTransform.dispose();
     for (final image in _images.values) {
       image.dispose();
     }
@@ -244,6 +248,20 @@ class _PdfViewerState extends State<_PdfViewer> {
       _order.clear();
       _aspects.clear();
     });
+  }
+
+  /// Double-tap toggles between fit-width and a comfortable reading zoom.
+  void _handleDoubleTap() {
+    _setZoom(_zoom <= 1.25 ? 2.0 : 1.0);
+  }
+
+  /// Turns a finished pinch into a committed, crisp re-render at the new
+  /// zoom, then resets the visual transform so layout follows the pages.
+  void _commitViewTransform(ScaleEndDetails details) {
+    final scale = _viewTransform.value.getMaxScaleOnAxis();
+    final target = scale.clamp(1.0, 4.0);
+    _viewTransform.value = Matrix4.identity();
+    if ((target - _zoom).abs() > 0.01) _setZoom(target);
   }
 
   double _itemHeight(int index) {
@@ -359,21 +377,34 @@ class _PdfViewerState extends State<_PdfViewer> {
             return Column(
               children: [
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    cacheExtent: 800, // ignore: deprecated_member_use
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: pages,
-                    itemBuilder: (context, index) {
-                      if (!_images.containsKey(index) &&
-                          !_rendering.contains(index)) {
-                        _renderPage(index, viewportWidth);
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: _pageGap),
-                        child: _buildPage(index, viewportWidth),
-                      );
-                    },
+                  child: GestureDetector(
+                    onDoubleTap: _handleDoubleTap,
+                    child: InteractiveViewer(
+                      transformationController: _viewTransform,
+                      // Single-finger drags stay with the page list so
+                      // scrolling keeps working; only pinches zoom.
+                      panEnabled: false,
+                      scaleEnabled: true,
+                      minScale: 1.0,
+                      maxScale: 4.0,
+                      onInteractionEnd: _commitViewTransform,
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        cacheExtent: 800, // ignore: deprecated_member_use
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: pages,
+                        itemBuilder: (context, index) {
+                          if (!_images.containsKey(index) &&
+                              !_rendering.contains(index)) {
+                            _renderPage(index, viewportWidth);
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: _pageGap),
+                            child: _buildPage(index, viewportWidth),
+                          );
+                        },
+                      ),
+                    ),
                   ),
                 ),
                 Material(
