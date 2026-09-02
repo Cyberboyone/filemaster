@@ -12,6 +12,16 @@ import '../models/recent_file.dart';
 import '../utils/doc_format.dart';
 import '../widgets/docx_document_view.dart';
 
+/// Inverts a rendered PDF page so it reads light-on-dark in dark mode
+/// (white paper becomes the dark page, the document's black ink becomes
+/// white text) instead of hiding dark text on the dark page.
+const List<double> _invertPageMatrix = <double>[
+  -1, 0, 0, 0, 255,
+  0, -1, 0, 0, 255,
+  0, 0, -1, 0, 255,
+  0, 0, 0, 1, 0,
+];
+
 class ViewerScreen extends StatelessWidget {
   const ViewerScreen({super.key, required this.file});
 
@@ -300,7 +310,12 @@ class _PdfViewerState extends State<_PdfViewer> {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: RawImage(image: image, fit: BoxFit.fill),
+      child: Theme.of(context).brightness == Brightness.dark
+          ? ColorFiltered(
+              colorFilter: ColorFilter.matrix(_invertPageMatrix),
+              child: RawImage(image: image, fit: BoxFit.fill),
+            )
+          : RawImage(image: image, fit: BoxFit.fill),
     );
     if (_zoom > 1.0) {
       return SingleChildScrollView(
