@@ -153,6 +153,9 @@ class _PdfViewerState extends State<_PdfViewer> {
   /// Rendered page images, evicted oldest-first.
   final Map<int, ui.Image> _images = {};
   final List<int> _order = [];
+  /// Zoom level at which each page image was rendered; used to decide
+  /// when a page needs re-rendering after a zoom change.
+  final Map<int, double> _imageZoom = {};
 
   /// Pages currently being rendered (dedupe).
   final Set<int> _rendering = {};
@@ -191,7 +194,10 @@ class _PdfViewerState extends State<_PdfViewer> {
   }
 
   Future<void> _renderPage(int index, double viewportWidth) async {
-    if (_rendering.contains(index) || _images.containsKey(index)) return;
+    // Skip only if a render is already in flight for this page, or the
+    // page is already rendered at the current zoom level.
+    if (_rendering.contains(index)) return;
+    if (_images.containsKey(index) && _imageZoom[index] == _zoom) return;
     _rendering.add(index);
     try {
       final document = await _document;
@@ -223,10 +229,12 @@ class _PdfViewerState extends State<_PdfViewer> {
       setState(() {
         _images.remove(index)?.dispose();
         _images[index] = ready;
+        _imageZoom[index] = _zoom;
         _order.add(index);
         while (_order.length > _maxCached) {
           final victim = _order.removeAt(0);
           final cached = _images.remove(victim);
+          _imageZoom.remove(victim);
           if (cached != null && cached != ready) cached.dispose();
         }
       });
@@ -239,14 +247,19 @@ class _PdfViewerState extends State<_PdfViewer> {
   }
 
   void _setZoom(double zoom) {
+    if (zoom == _zoom) return;
     setState(() {
       _zoom = zoom;
-      for (final image in _images.values) {
-        image.dispose();
+      // Do NOT clear the cached pages: they stay visible (slightly soft)
+      // at the new zoom while sharper versions render in the background,
+      // so the scroll position is kept and there are no loading flashes.
+      if (_viewportWidth > 0) {
+        for (var i = (_current - 3).clamp(0, _pageCount);
+            i <= _current + 3 && i < _pageCount;
+            i++) {
+          _renderPage(i, _viewportWidth);
+        }
       }
-      _images.clear();
-      _order.clear();
-      _aspects.clear();
     });
   }
 
