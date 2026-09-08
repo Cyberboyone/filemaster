@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -34,12 +35,22 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _tabIndex = 0;
+  Timer? _adTimer;
 
   @override
   void initState() {
     super.initState();
-    // Show the app-open interstitial only once per app process.
-    AdInterstitial.instance.showAppOpen(onDone: () {});
+    // Show the app-open interstitial a few seconds after the home screen
+    // renders so the user can orient first; only once per process lifetime.
+    _adTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) AdInterstitial.instance.showAppOpen(onDone: () {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _adTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _pickAndRecord() async {
